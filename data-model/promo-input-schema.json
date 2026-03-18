@@ -1,0 +1,320 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://coop-mobile.ch/schemas/promo-input/v1.0.0",
+  "title": "Coop Mobile Promo Input",
+  "description": "Strukturierter Input für das Agentic Promo Production System. Alle Workflows validieren gegen dieses Schema.",
+  "type": "object",
+  "required": ["meta", "product", "pricing", "campaign", "channels", "compliance", "languages"],
+  "properties": {
+    "promo_id": {
+      "type": "string",
+      "pattern": "^CM-[0-9]{4}-W[0-9]{2}-[0-9]{3}$",
+      "description": "Eindeutige Promo-ID. Format: CM-YYYY-WXX-NNN",
+      "examples": ["CM-2026-W23-001"]
+    },
+    "meta": {
+      "type": "object",
+      "required": ["brand", "campaign_type", "status"],
+      "properties": {
+        "brand": {
+          "type": "string",
+          "enum": ["coop_mobile", "wingo", "m_budget_mobile"],
+          "description": "Marke. System ist brand-agnostisch designt."
+        },
+        "campaign_type": {
+          "type": "string",
+          "enum": ["aktionswoche", "themenpromo", "standardpromo", "saisonpromo", "launch"],
+          "description": "Kampagnentyp bestimmt Template-Auswahl und Tonalität"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "input_complete", "in_generation", "in_review", "approved", "published", "archived"],
+          "default": "draft"
+        },
+        "created_by": {
+          "type": "string",
+          "description": "Name oder Team das den Input erstellt hat"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["normal", "express", "urgent"],
+          "default": "normal",
+          "description": "Express/Urgent überspringen Quality-Scoring"
+        }
+      }
+    },
+    "product": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Produktname wie er in Assets erscheinen soll",
+          "examples": ["Coop Mobile Basic", "Coop Mobile Premium", "Coop Mobile Prepaid"]
+        },
+        "type": {
+          "type": "string",
+          "enum": ["abo", "prepaid", "hardware", "bundle", "option"]
+        },
+        "sku": {
+          "type": "string",
+          "description": "Interne Artikelnummer"
+        },
+        "features": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Key Features für Kommunikation",
+          "examples": [["5G im Swisscom Netz", "Unlimitiert telefonieren in der CH", "30 GB Daten/Mt."]]
+        },
+        "network": {
+          "type": "string",
+          "enum": ["5g_swisscom", "4g_swisscom", "other"],
+          "description": "Netzwerk bestimmt Badge-Logik (5G Badge ja/nein)"
+        }
+      }
+    },
+    "pricing": {
+      "type": "object",
+      "required": ["price_new", "currency"],
+      "properties": {
+        "price_old": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Alter Preis (vor Rabatt). Null bei Neuprodukten."
+        },
+        "price_new": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Neuer/Aktionspreis"
+        },
+        "currency": {
+          "type": "string",
+          "enum": ["CHF"],
+          "default": "CHF"
+        },
+        "price_suffix": {
+          "type": "string",
+          "enum": ["/Mt.", "/Jahr", "einmalig", ""],
+          "default": "/Mt.",
+          "description": "Wird direkt hinter dem Preis angezeigt"
+        },
+        "discount_type": {
+          "type": "string",
+          "enum": ["percentage", "absolute", "special", "none"],
+          "description": "Art des Rabatts"
+        },
+        "discount_value": {
+          "type": "number",
+          "description": "Rabattwert (z.B. 60 für 60% oder 18 für CHF 18.-)"
+        },
+        "discount_display": {
+          "type": "string",
+          "description": "Exakte Darstellung des Rabatts in Assets",
+          "examples": ["60%", "CHF 18.-", "2 für 1"]
+        },
+        "duration": {
+          "type": "string",
+          "enum": ["lebenslang", "24_monate", "12_monate", "6_monate", "3_monate", "einmalig"],
+          "description": "Gültigkeitsdauer des Rabatts"
+        },
+        "conditions": {
+          "type": "string",
+          "description": "Bedingungen zum Preis (werden zu Compliance-Pflichttext)",
+          "examples": ["Nur für Neukunden. Mindestvertragsdauer 24 Monate."]
+        }
+      }
+    },
+    "campaign": {
+      "type": "object",
+      "required": ["start_date", "end_date"],
+      "properties": {
+        "start_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "end_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "target_audience": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["neukunden", "bestandskunden", "jugendliche", "familien", "senioren", "geschaeftskunden", "alle"]
+          },
+          "description": "Zielgruppen (mehrere möglich)"
+        },
+        "key_message": {
+          "type": "string",
+          "description": "Optionale Vorgabe der Kernbotschaft. Wenn leer, generiert Claude.",
+          "examples": ["Der günstigste 5G-Tarif der Schweiz"]
+        },
+        "claim_direction": {
+          "type": "string",
+          "enum": ["preis_fokus", "feature_fokus", "emotional", "vergleich", "auto"],
+          "default": "auto",
+          "description": "'auto' = Claude entscheidet basierend auf Promo-Daten"
+        },
+        "tone_override": {
+          "type": "string",
+          "description": "Optionale Tonalitäts-Überschreibung (sonst Brand Default)"
+        }
+      }
+    },
+    "channels": {
+      "type": "object",
+      "description": "Aktive Kanäle für diese Promo. Nur aktivierte Kanäle bekommen Assets.",
+      "properties": {
+        "print": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "formats": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["fust_inserat", "id_inserat", "pos_plakat", "flyer", "beilage", "zeitungsinserat", "prospekt"]
+              }
+            }
+          }
+        },
+        "digital": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "formats": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["display_banner", "social_feed", "social_story", "newsletter_banner", "website_teaser", "website_hero"]
+              }
+            }
+          }
+        },
+        "sea": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "platforms": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["google", "bing"] }
+            }
+          }
+        },
+        "social_organic": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "platforms": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["instagram", "facebook", "linkedin", "tiktok"] }
+            }
+          }
+        },
+        "crm": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "types": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["newsletter", "trigger_mail", "push_notification"] }
+            }
+          }
+        },
+        "ooh": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "formats": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["plakat_f4", "plakat_f12", "plakat_f200", "dooh_screen", "citylights"] }
+            }
+          }
+        },
+        "pos": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "formats": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["pos_plakat", "digital_signage", "kassen_asset", "alarmcover"] }
+            }
+          }
+        }
+      }
+    },
+    "compliance": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "disclaimer_required": {
+          "type": "boolean",
+          "default": true
+        },
+        "disclaimer_text": {
+          "type": "string",
+          "description": "Exakter Disclaimer-Text. Wird 1:1 übernommen, NIEMALS von AI verändert."
+        },
+        "five_g_badge": {
+          "type": "boolean",
+          "default": false,
+          "description": "5G Badge anzeigen (abhängig von product.network)"
+        },
+        "swisscom_netz_hinweis": {
+          "type": "boolean",
+          "default": true,
+          "description": "Pflichthinweis '5G im Swisscom Netz'"
+        },
+        "legal_review_required": {
+          "type": "boolean",
+          "default": false,
+          "description": "Muss Rechtsabteilung freigeben?"
+        },
+        "additional_legal": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Weitere rechtliche Pflichthinweise"
+        }
+      }
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["de", "fr", "it"]
+      },
+      "minItems": 1,
+      "default": ["de", "fr", "it"],
+      "description": "Sprachversionen die generiert werden sollen. DE ist immer Ausgangssprache."
+    },
+    "restrictions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Einschränkungen und Besonderheiten",
+      "examples": [["Nicht kombinierbar mit anderen Aktionen", "Nur online verfügbar"]]
+    },
+    "references": {
+      "type": "object",
+      "description": "Optionale Referenzen auf vergangene Kampagnen oder Assets",
+      "properties": {
+        "previous_campaign_id": {
+          "type": "string",
+          "description": "Referenz auf ähnliche vergangene Promo"
+        },
+        "asset_references": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "URLs oder Pfade zu Referenz-Assets"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Freitext-Notizen für den AI Agent"
+        }
+      }
+    }
+  }
+}

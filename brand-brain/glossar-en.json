@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "language": "en",
+    "description": "Binding glossary for Coop Mobile EN. These terms MUST be used exactly as stated."
+  },
+  "terms": {
+    "5G on the Swisscom network": {
+      "use": "ALWAYS for 5G products",
+      "wrong": ["5G network", "Swisscom 5G", "on the 5G network of Swisscom"],
+      "context": "Mandatory mention"
+    },
+    "Mobile plan": {
+      "use": "Standard term for mobile phone subscription",
+      "wrong": ["mobile subscription", "phone plan", "mobile contract", "cell plan"],
+      "context": "General"
+    },
+    "Coop Mobile": {
+      "use": "Always capitalised, always as two words",
+      "wrong": ["coop mobile", "CoopMobile", "COOP MOBILE", "Coop mobile"],
+      "context": "Brand name"
+    },
+    "Lifetime discount": {
+      "use": "For duration=lebenslang",
+      "wrong": ["Permanent discount", "Everlasting discount", "Forever discount"],
+      "context": "Promo"
+    },
+    "/mo.": {
+      "use": "Suffix for monthly prices",
+      "wrong": ["/month", "per month", "/m", "monthly"],
+      "context": "Price"
+    },
+    "CHF": {
+      "use": "Before the price, with space: CHF 11.95",
+      "wrong": ["Fr.", "SFr.", "11.95 CHF", "CHF11.95"],
+      "context": "Price"
+    },
+    "Order now": {
+      "use": "Standard CTA for ordering",
+      "wrong": ["Buy now", "Purchase now", "Get it now"],
+      "context": "CTA"
+    },
+    "Learn more": {
+      "use": "Standard CTA for information",
+      "wrong": ["Find out more", "Read more", "Discover more"],
+      "context": "CTA"
+    },
+    "No activation fee": {
+      "use": "Standard mention for free activation",
+      "wrong": ["Free activation", "Zero activation fee", "Activation included"],
+      "context": "Promo"
+    },
+    "Minimum contract duration": {
+      "use": "Standard legal term",
+      "wrong": ["Minimum commitment", "Minimum period", "Lock-in period"],
+      "context": "Legal"
+    }
+  }
+}

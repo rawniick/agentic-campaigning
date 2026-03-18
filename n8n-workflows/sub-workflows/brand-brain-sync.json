@@ -1,0 +1,87 @@
+{
+  "name": "Brand Brain Sync (Daily)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Daily 06:00 Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.NEXTJS_APP_URL }}/api/brand-brain/refresh",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.BRAND_BRAIN_REFRESH_SECRET }}"
+            },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Refresh Brand Brain Cache",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.statusCode >= 200 && $json.statusCode < 300 }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {},
+      "name": "Sync OK",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [800, 200]
+    },
+    {
+      "parameters": {},
+      "name": "Sync Failed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [800, 400]
+    }
+  ],
+  "connections": {
+    "Daily 06:00 Trigger": { "main": [[{ "node": "Refresh Brand Brain Cache", "type": "main", "index": 0 }]] },
+    "Refresh Brand Brain Cache": { "main": [[{ "node": "Check Success", "type": "main", "index": 0 }]] },
+    "Check Success": {
+      "main": [
+        [{ "node": "Sync OK", "type": "main", "index": 0 }],
+        [{ "node": "Sync Failed", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [{ "name": "brand-brain" }, { "name": "sync" }]
+}
