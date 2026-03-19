@@ -45,6 +45,8 @@ export async function getSelectedConcept(
     .select("*")
     .eq("campaign_id", campaignId)
     .eq("is_selected", true)
+    .order("generated_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) throw new Error(`Ausgewaehltes Konzept laden fehlgeschlagen: ${error.message}`);

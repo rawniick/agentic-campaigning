@@ -14,16 +14,51 @@ import { loadGlossar } from "@/lib/ai/brand-brain/loader";
 import { getAuthUser } from "@/lib/auth/get-user";
 import { z } from "zod";
 
-// Schema fuer Uebersetzungs-Output
+// Schema fuer Uebersetzungs-Output (akzeptiert beide Claude-Formate)
 const translationOutputSchema = z.object({
   target_language: z.string(),
   translated_claims: z.array(z.string()),
   translated_hero_message: z.string(),
   translated_channel_adaptations: z.record(z.string(), z.unknown()).optional(),
-  translated_disclaimer: z.string().optional(),
+  translated_disclaimer: z.string().nullable().optional(),
   glossar_terms_used: z.array(z.record(z.string(), z.string())).optional(),
-  translation_notes: z.array(z.string()).optional(),
+  translation_notes: z.union([z.array(z.string()), z.record(z.string(), z.unknown())]).optional(),
 });
+
+// Claude gibt manchmal ein alternatives Format zurueck — normalisieren
+function normalizeTranslationOutput(data: Record<string, unknown>, lang: string): Record<string, unknown> {
+  // Format A: Erwartet (target_language, translated_claims, ...)
+  if (data.target_language && data.translated_claims) return data;
+
+  // Format B: Claude-Format (language, translations: { claims, hero_message, ... })
+  if (data.translations && typeof data.translations === "object") {
+    const t = data.translations as Record<string, unknown>;
+    return {
+      target_language: (data.language as string) ?? lang,
+      translated_claims: t.claims ?? [],
+      translated_hero_message: t.hero_message ?? "",
+      translated_channel_adaptations: t.channel_adaptations ?? undefined,
+      translated_disclaimer: t.disclaimer ?? undefined,
+      glossar_terms_used: (data.glossar_terms_used ?? t.glossar_terms_used) as unknown[] | undefined,
+      translation_notes: (data.quality_notes ?? data.translation_notes ?? t.translation_notes) as string[] | undefined,
+    };
+  }
+
+  // Format C: Flaches Format ohne Prefix (language, claims, hero_message)
+  if (data.claims && data.hero_message) {
+    return {
+      target_language: (data.language ?? data.target_language ?? lang) as string,
+      translated_claims: data.claims,
+      translated_hero_message: data.hero_message,
+      translated_channel_adaptations: data.channel_adaptations ?? undefined,
+      translated_disclaimer: data.disclaimer ?? undefined,
+      glossar_terms_used: data.glossar_terms_used as unknown[] | undefined,
+      translation_notes: (data.quality_notes ?? data.translation_notes) as string[] | undefined,
+    };
+  }
+
+  return data;
+}
 
 // POST /api/generate/translate - DE->FR/IT/EN Uebersetzung mit Glossar
 export async function POST(request: NextRequest) {
@@ -84,8 +119,10 @@ export async function POST(request: NextRequest) {
         brand: campaign.brand,
       });
 
-      const parsed = translationOutputSchema.safeParse(response.data);
+      const normalized = normalizeTranslationOutput(response.data as Record<string, unknown>, lang);
+      const parsed = translationOutputSchema.safeParse(normalized);
       if (!parsed.success) {
+        console.warn(`[Translate] Zod-Validierung fehlgeschlagen fuer ${lang}:`, parsed.error.flatten());
         results.push({ language: lang, error: "Output-Validierung fehlgeschlagen", details: parsed.error.flatten() });
         continue;
       }
