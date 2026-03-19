@@ -27,6 +27,7 @@ const MODE_CONFIG: Record<AssetGenerationMode, { label: string; icon: typeof Lay
   ai_image: { label: "AI-Bild", icon: Wand2, className: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" },
   ai_video: { label: "AI-Video", icon: Video, className: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
   text_only: { label: "Text", icon: Layout, className: "" },
+  compositing: { label: "Compositing", icon: Layout, className: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
 };
 
 interface AssetPreviewProps {

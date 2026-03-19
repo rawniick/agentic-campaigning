@@ -5,7 +5,9 @@ import { createAsset } from "@/lib/db/queries/assets";
 import { logAuditEvent } from "@/lib/db/queries/approvals";
 import { routeImageTask } from "@/lib/ai/providers/router";
 import { initializeProviders } from "@/lib/ai/providers/init";
-import { uploadFromBase64, uploadFromUrl } from "@/lib/integrations/storage";
+import { providerRegistry } from "@/lib/ai/providers/registry";
+import { uploadFromBase64, uploadFromUrl, uploadBuffer } from "@/lib/integrations/storage";
+import { compositeAsset } from "@/lib/compositing/engine";
 import { getAuthUser } from "@/lib/auth/get-user";
 import { randomUUID } from "crypto";
 
@@ -49,33 +51,69 @@ export async function POST(request: NextRequest) {
       `${basePrompt} Andere Farbstimmung, kreativer Ansatz.`,
     ];
 
+    // Pruefen ob ein AI-Image-Provider verfuegbar ist
+    const hasImageProvider = providerRegistry.getByCapability("image").length > 0;
+
     for (let i = 0; i < HERO_CANDIDATES_COUNT; i++) {
       try {
-        const response = await routeImageTask({
-          taskType: "image_generation",
-          campaignId,
-          brand: campaign.brand,
-          language: "de",
-          prompt: variations[i],
-          width: HERO_DIMENSIONS.width,
-          height: HERO_DIMENSIONS.height,
-          style: concept.key_visual_direction ?? undefined,
-        });
-
-        const image = response.data.images[0];
-        if (!image) continue;
-
-        // In Storage persistieren
         let uploadResult;
-        if (image.url.startsWith("data:")) {
-          uploadResult = await uploadFromBase64(
-            campaignId, "hero", `candidate_${i}`, "de",
-            image.url, image.format ?? "png"
-          );
+        let provider = "compositing";
+
+        if (hasImageProvider) {
+          // AI-Image-Provider (NanoBanana, DALL-E)
+          const response = await routeImageTask({
+            taskType: "image_generation",
+            campaignId,
+            brand: campaign.brand,
+            language: "de",
+            prompt: variations[i],
+            width: HERO_DIMENSIONS.width,
+            height: HERO_DIMENSIONS.height,
+            style: concept.key_visual_direction ?? undefined,
+          });
+
+          const image = response.data.images[0];
+          if (!image) continue;
+
+          if (image.url.startsWith("data:")) {
+            uploadResult = await uploadFromBase64(
+              campaignId, "hero", `candidate_${i}`, "de",
+              image.url, image.format ?? "png"
+            );
+          } else {
+            uploadResult = await uploadFromUrl(
+              campaignId, "hero", `candidate_${i}`, "de",
+              image.url, image.format ?? "png"
+            );
+          }
+          provider = response.provider;
         } else {
-          uploadResult = await uploadFromUrl(
+          // Compositing-Fallback: Branded Placeholder mit Text
+          const brandColors = [
+            { bg: "#0028A5", primary: "#00ADEF", text: "#FFFFFF" }, // Variante 1
+            { bg: "#1A1A2E", primary: "#E94560", text: "#FFFFFF" }, // Variante 2
+            { bg: "#16213E", primary: "#0F3460", text: "#E94560" }, // Variante 3
+          ];
+          const colors = brandColors[i % brandColors.length];
+
+          const result = await compositeAsset({
+            content: {
+              claim: concept.leitidee ?? campaign.product_name,
+              hero_message: concept.hero_message ?? "",
+            },
+            format: "hero",
+            channel: "hero",
+            brand: {
+              primaryColor: colors.primary,
+              secondaryColor: colors.bg,
+              backgroundColor: colors.bg,
+              textColor: colors.text,
+            },
+          });
+
+          uploadResult = await uploadBuffer(
             campaignId, "hero", `candidate_${i}`, "de",
-            image.url, image.format ?? "png"
+            result.buffer, result.mimeType, "png"
           );
         }
 
@@ -95,9 +133,9 @@ export async function POST(request: NextRequest) {
           error_message: null,
           exported_to: null,
           export_ids: null,
-          generation_mode: "ai_image",
+          generation_mode: hasImageProvider ? "ai_image" : "compositing",
           ai_prompt: variations[i],
-          ai_provider: response.provider,
+          ai_provider: provider,
           storage_url: uploadResult.publicUrl,
           file_size_bytes: uploadResult.fileSize,
           mime_type: uploadResult.mimeType,

@@ -352,7 +352,7 @@ export interface AuditLogEntry {
 }
 
 // Phase 6: AI Provider Router
-export type AssetGenerationMode = "template" | "ai_image" | "ai_video" | "text_only";
+export type AssetGenerationMode = "template" | "ai_image" | "ai_video" | "text_only" | "compositing";
 
 export interface AIProviderConfig {
   id: string;
