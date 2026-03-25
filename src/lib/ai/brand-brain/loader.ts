@@ -14,6 +14,13 @@ import {
   loadGlossarFromFrontify,
   resetFrontifyContext,
 } from "./frontify-adapter";
+import {
+  loadToneOfVoiceFromAirtable,
+  loadCIRulesFromAirtable,
+  loadGlossarFromAirtable,
+  loadGoldenExamplesFromAirtable,
+  resetAirtableContext,
+} from "./airtable-adapter";
 
 // Brand Brain Dateien - Frontify + Google Drive + lokal als Quellen
 export interface BrandBrainFiles {
@@ -54,7 +61,7 @@ export interface CIRules {
 }
 
 // Quellen-Typ fuer Brand Brain Dateien
-export type BrandBrainSource = "manual" | "frontify" | "drive" | "local" | "cache" | "default";
+export type BrandBrainSource = "manual" | "frontify" | "airtable" | "drive" | "local" | "cache" | "default";
 
 // Lade-Ergebnis mit Quellen-Info
 export interface LoadResult<T> {
@@ -238,6 +245,16 @@ export async function loadGlossar(
     console.warn(`[Brand Brain] Frontify Glossar-Laden fehlgeschlagen:`, err);
   }
 
+  // Airtable: Glossar (nach Frontify, vor Drive)
+  try {
+    const airtableGlossar = await loadGlossarFromAirtable(language);
+    if (airtableGlossar && Object.keys(airtableGlossar.terms).length > 0) {
+      return airtableGlossar;
+    }
+  } catch (err) {
+    console.warn(`[Brand Brain] Airtable Glossar-Laden fehlgeschlagen:`, err);
+  }
+
   // Standard: Drive → Lokal → Default
   return loadFileWithDriveFallback(
     driveFilename,
@@ -293,6 +310,16 @@ export async function loadToneOfVoice(): Promise<string> {
     console.warn("[Brand Brain] Frontify TOV-Laden fehlgeschlagen:", err);
   }
 
+  // Airtable: TOV (nach Frontify, vor Drive)
+  try {
+    const airtableTov = await loadToneOfVoiceFromAirtable();
+    if (airtableTov) {
+      return airtableTov;
+    }
+  } catch (err) {
+    console.warn("[Brand Brain] Airtable TOV-Laden fehlgeschlagen:", err);
+  }
+
   // Fallback: Drive → Lokal → Default
   return loadFileWithDriveFallback(
     driveFilename,
@@ -302,13 +329,23 @@ export async function loadToneOfVoice(): Promise<string> {
   );
 }
 
-// Golden Examples laden (optional) — nur Drive + Lokal
+// Golden Examples laden (optional) — Airtable + Drive + Lokal
 export async function loadGoldenExamples(): Promise<GoldenExample[]> {
   const driveFilename = "golden-examples.json";
   const localPaths = [
     path.join(BRAND_BRAIN_LOCAL_PATH, driveFilename),
     path.join(BRAND_BRAIN_FALLBACK_PATH, driveFilename),
   ];
+
+  // Airtable: Golden Examples
+  try {
+    const airtableExamples = await loadGoldenExamplesFromAirtable();
+    if (airtableExamples && airtableExamples.length > 0) {
+      return airtableExamples;
+    }
+  } catch (err) {
+    console.warn("[Brand Brain] Airtable Golden-Examples-Laden fehlgeschlagen:", err);
+  }
 
   return loadFileWithDriveFallback(
     driveFilename,
@@ -366,6 +403,16 @@ export async function loadCIRules(): Promise<CIRules | undefined> {
     console.warn("[Brand Brain] Frontify CI-Rules-Laden fehlgeschlagen:", err);
   }
 
+  // Airtable: CI-Rules (nach Frontify, vor Drive)
+  try {
+    const airtableCIRules = await loadCIRulesFromAirtable();
+    if (airtableCIRules) {
+      return airtableCIRules;
+    }
+  } catch (err) {
+    console.warn("[Brand Brain] Airtable CI-Rules-Laden fehlgeschlagen:", err);
+  }
+
   // Fallback: Drive → Lokal → Default
   return loadFileWithDriveFallback(
     driveFilename,
@@ -406,4 +453,5 @@ export function resetDriveContext(): void {
 export function resetAllSources(): void {
   resetDriveContext();
   resetFrontifyContext();
+  resetAirtableContext();
 }

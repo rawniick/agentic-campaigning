@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as {
       fileKey?: string;
-      source?: "frontify" | "drive" | "all";
+      source?: "frontify" | "airtable" | "drive" | "all";
     };
     fileKey = body.fileKey;
     source = body.source;
@@ -55,6 +55,22 @@ export async function POST(request: NextRequest) {
         await invalidateCache(`frontify:${fileKey}`);
       } else {
         await Promise.all(frontifyKeys.map((key) => invalidateCache(key)));
+      }
+    } else if (source === "airtable") {
+      // Nur Airtable-Cache invalidieren
+      const airtableKeys = [
+        "airtable:tone-of-voice",
+        "airtable:ci-rules",
+        "airtable:glossar-de",
+        "airtable:glossar-fr",
+        "airtable:glossar-it",
+        "airtable:glossar-en",
+        "airtable:golden-examples",
+      ];
+      if (fileKey) {
+        await invalidateCache(`airtable:${fileKey}`);
+      } else {
+        await Promise.all(airtableKeys.map((key) => invalidateCache(key)));
       }
     } else if (source === "drive") {
       // Nur Drive-Cache invalidieren

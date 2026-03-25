@@ -44,14 +44,24 @@ interface BrandBrainFileStatus {
   label: string;
   fileKey: string;
   cached: boolean;
-  source: "manual" | "frontify" | "drive" | "local" | "none";
+  source: "manual" | "frontify" | "airtable" | "drive" | "local" | "none";
   manualUpload?: { uploadedAt: string; originalFilename?: string };
 }
 
 interface BrandBrainStatus {
   frontify: { configured: boolean; domain: string | null };
+  airtable: { configured: boolean; baseId: string | null };
   drive: { configured: boolean; folderId: string | null };
   files: BrandBrainFileStatus[];
+}
+
+interface AirtableTestResult {
+  success: boolean;
+  error?: string;
+  bases?: Array<{ id: string; name: string }>;
+  selectedBase?: string;
+  tables?: Array<{ id: string; name: string; fieldCount: number; fields: Array<{ name: string; type: string }> }>;
+  suggestedMappings?: Record<string, string>;
 }
 
 interface FrontifyTestResult {
@@ -78,6 +88,9 @@ function getSourceBadge(source: string, cached: boolean) {
   }
   if (cached && source === "frontify") {
     return <Badge variant="default" className="bg-violet-600">Frontify</Badge>;
+  }
+  if (cached && source === "airtable") {
+    return <Badge variant="default" className="bg-amber-600">Airtable</Badge>;
   }
   if (cached && source === "drive") {
     return <Badge variant="default" className="bg-blue-600">Google Drive</Badge>;
@@ -125,6 +138,18 @@ export default function BrandBrainSettingsPage() {
   const [frontifyBrandId, setFrontifyBrandId] = useState("");
   const [testResult, setTestResult] = useState<FrontifyTestResult | null>(null);
   const [testing, setTesting] = useState(false);
+
+  // Airtable
+  const [airtableToken, setAirtableToken] = useState("");
+  const [airtableBaseId, setAirtableBaseId] = useState("");
+  const [airtableTestResult, setAirtableTestResult] = useState<AirtableTestResult | null>(null);
+  const [airtableTesting, setAirtableTesting] = useState(false);
+  const [airtableTableMappings, setAirtableTableMappings] = useState<Record<string, string>>({
+    toneOfVoice: "",
+    ciRules: "",
+    glossar: "",
+    goldenExamples: "",
+  });
 
   // Sync
   const [syncing, setSyncing] = useState(false);
@@ -282,8 +307,39 @@ export default function BrandBrainSettingsPage() {
     }
   }
 
+  // Airtable Test
+  async function handleAirtableTestConnection() {
+    setAirtableTesting(true);
+    setAirtableTestResult(null);
+    try {
+      const res = await fetch("/api/brand-brain/airtable/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: airtableToken,
+          baseId: airtableBaseId || undefined,
+        }),
+      });
+      const data = await res.json();
+      setAirtableTestResult(data);
+      // Auto-fill Table-Mappings wenn vorgeschlagen
+      if (data.suggestedMappings) {
+        setAirtableTableMappings((prev) => ({
+          ...prev,
+          ...Object.fromEntries(
+            Object.entries(data.suggestedMappings as Record<string, string>).filter(([, v]) => v)
+          ),
+        }));
+      }
+    } catch {
+      setAirtableTestResult({ success: false, error: "Netzwerk-Fehler" });
+    } finally {
+      setAirtableTesting(false);
+    }
+  }
+
   // Cache Sync
-  async function handleSync(source?: "frontify" | "drive") {
+  async function handleSync(source?: "frontify" | "airtable" | "drive") {
     setSyncing(true);
     setSyncResult(null);
     try {
@@ -319,7 +375,7 @@ export default function BrandBrainSettingsPage() {
       </div>
 
       {/* Quellen-Uebersicht */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center gap-3 pb-2">
             <Upload className="h-5 w-5 text-green-500" />
@@ -350,6 +406,29 @@ export default function BrandBrainSettingsPage() {
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
                 <span className="text-sm">{status.frontify.domain}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <XCircle className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Nicht verbunden</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-3 pb-2">
+            <Database className="h-5 w-5 text-amber-500" />
+            <div>
+              <CardTitle className="text-sm font-medium">Airtable</CardTitle>
+              <CardDescription>Brand Brain Daten</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {status?.airtable?.configured ? (
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span className="text-sm">Base {status.airtable.baseId?.slice(0, 10)}...</span>
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -533,6 +612,74 @@ export default function BrandBrainSettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Airtable Verbindung */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            Airtable verbinden
+          </CardTitle>
+          <CardDescription>
+            Verbinde dein Airtable-Konto um Brand Brain Daten (Glossar, Tone of Voice, CI-Rules, Golden Examples) automatisch zu synchronisieren.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="airtable-token">Personal Access Token</Label>
+              <Input
+                id="airtable-token"
+                type="password"
+                placeholder="pat..."
+                value={airtableToken}
+                onChange={(e) => setAirtableToken(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="airtable-base-id">Base ID</Label>
+              <Input
+                id="airtable-base-id"
+                placeholder="appXXXXXXXXXXXXXX"
+                value={airtableBaseId}
+                onChange={(e) => setAirtableBaseId(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleAirtableTestConnection}
+              disabled={airtableTesting || !airtableToken}
+            >
+              {airtableTesting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Teste Verbindung...</>
+              ) : (
+                <><Plug className="mr-2 h-4 w-4" />Verbindung testen</>
+              )}
+            </Button>
+
+            {status?.airtable?.configured && (
+              <Button variant="outline" onClick={() => handleSync("airtable")} disabled={syncing}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+                Airtable Sync
+              </Button>
+            )}
+          </div>
+
+          {airtableTestResult && (
+            <AirtableTestResultDisplay
+              result={airtableTestResult}
+              token={airtableToken}
+              baseId={airtableBaseId}
+              tableMappings={airtableTableMappings}
+              onMappingChange={(key, value) =>
+                setAirtableTableMappings((prev) => ({ ...prev, [key]: value }))
+              }
+            />
+          )}
+        </CardContent>
+      </Card>
+
       {/* Google Drive */}
       <Card>
         <CardHeader>
@@ -579,13 +726,15 @@ export default function BrandBrainSettingsPage() {
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <Badge variant="default" className="bg-green-600">1. Upload</Badge>
             <span className="text-muted-foreground">&rarr;</span>
-            <Badge variant="default" className="bg-amber-600">2. Cache</Badge>
+            <Badge variant="default" className="bg-slate-600">2. Cache</Badge>
             <span className="text-muted-foreground">&rarr;</span>
             <Badge variant="default" className="bg-violet-600">3. Frontify</Badge>
             <span className="text-muted-foreground">&rarr;</span>
-            <Badge variant="default" className="bg-blue-600">4. Drive</Badge>
+            <Badge variant="default" className="bg-amber-600">4. Airtable</Badge>
             <span className="text-muted-foreground">&rarr;</span>
-            <Badge variant="outline">5. Lokal</Badge>
+            <Badge variant="default" className="bg-blue-600">5. Drive</Badge>
+            <span className="text-muted-foreground">&rarr;</span>
+            <Badge variant="outline">6. Lokal</Badge>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
             Hochgeladene Dateien haben immer Vorrang. Cache-Refresh loescht nur Cache-Eintraege, nicht Uploads.
@@ -596,6 +745,9 @@ export default function BrandBrainSettingsPage() {
       <div className="flex gap-4 text-sm text-muted-foreground">
         <a href="https://developer.frontify.com/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground">
           <ExternalLink className="h-3 w-3" />Frontify Docs
+        </a>
+        <a href="https://airtable.com/developers/web/api/introduction" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground">
+          <ExternalLink className="h-3 w-3" />Airtable API Docs
         </a>
       </div>
     </div>
@@ -753,6 +905,112 @@ function FrontifyTestResultDisplay({
 {`FRONTIFY_DOMAIN=${domain}
 FRONTIFY_TOKEN=${token.slice(0, 8)}...
 ${brandId ? `FRONTIFY_BRAND_ID=${brandId}` : "# FRONTIFY_BRAND_ID= (auto-discover)"}`}
+        </pre>
+      </div>
+    </div>
+  );
+}
+
+function AirtableTestResultDisplay({
+  result,
+  token,
+  baseId,
+  tableMappings,
+  onMappingChange,
+}: {
+  result: AirtableTestResult;
+  token: string;
+  baseId: string;
+  tableMappings: Record<string, string>;
+  onMappingChange: (key: string, value: string) => void;
+}) {
+  if (!result.success) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
+        <XCircle className="h-5 w-5 text-red-600" />
+        <span className="text-red-800 dark:text-red-200">{result.error}</span>
+      </div>
+    );
+  }
+
+  const mappingLabels: Record<string, string> = {
+    toneOfVoice: "Tone of Voice",
+    ciRules: "CI-Rules",
+    glossar: "Glossar",
+    goldenExamples: "Golden Examples",
+  };
+
+  return (
+    <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950">
+      <div className="flex items-center gap-2">
+        <CheckCircle2 className="h-5 w-5 text-green-600" />
+        <span className="font-medium text-green-800 dark:text-green-200">Verbindung erfolgreich!</span>
+      </div>
+
+      {result.bases && result.bases.length > 0 && (
+        <div>
+          <p className="mb-1 text-sm font-medium">Bases ({result.bases.length}):</p>
+          <div className="flex flex-wrap gap-2">
+            {result.bases.map((b) => (
+              <Badge key={b.id} variant={b.id === result.selectedBase ? "default" : "outline"}>
+                {b.name}{b.id === result.selectedBase && " (aktiv)"}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {result.tables && result.tables.length > 0 && (
+        <div>
+          <p className="mb-1 text-sm font-medium">Tables ({result.tables.length}):</p>
+          <div className="flex flex-wrap gap-2">
+            {result.tables.map((t) => (
+              <Badge key={t.id} variant="outline">
+                {t.name} ({t.fieldCount} Felder)
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Table-Mappings */}
+      {result.tables && result.tables.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm font-medium">Table-Zuordnung:</p>
+          <p className="text-xs text-muted-foreground">
+            Ordne deine Airtable-Tables den Brand Brain Kategorien zu. Leere Felder werden uebersprungen.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {Object.entries(mappingLabels).map(([key, label]) => (
+              <div key={key} className="space-y-1">
+                <Label className="text-xs">{label}</Label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={tableMappings[key] || ""}
+                  onChange={(e) => onMappingChange(key, e.target.value)}
+                >
+                  <option value="">-- nicht zugeordnet --</option>
+                  {result.tables!.map((t) => (
+                    <option key={t.id} value={t.name}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded border bg-background p-3 text-sm">
+        <p className="mb-1 font-medium">Environment Variables:</p>
+        <pre className="overflow-x-auto rounded bg-muted p-2 text-xs">
+{`AIRTABLE_TOKEN=${token.slice(0, 8)}...
+AIRTABLE_BASE_ID=${baseId || result.selectedBase || ""}
+${tableMappings.toneOfVoice ? `AIRTABLE_TABLE_TONE_OF_VOICE=${tableMappings.toneOfVoice}` : "# AIRTABLE_TABLE_TONE_OF_VOICE="}
+${tableMappings.ciRules ? `AIRTABLE_TABLE_CI_RULES=${tableMappings.ciRules}` : "# AIRTABLE_TABLE_CI_RULES="}
+${tableMappings.glossar ? `AIRTABLE_TABLE_GLOSSAR=${tableMappings.glossar}` : "# AIRTABLE_TABLE_GLOSSAR="}
+${tableMappings.goldenExamples ? `AIRTABLE_TABLE_GOLDEN_EXAMPLES=${tableMappings.goldenExamples}` : "# AIRTABLE_TABLE_GOLDEN_EXAMPLES="}`}
         </pre>
       </div>
     </div>

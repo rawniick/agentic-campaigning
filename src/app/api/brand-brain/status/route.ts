@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth/get-user";
 import { getCachedFile, getManualFile, listManualFiles } from "@/lib/ai/brand-brain/drive-cache";
 import { buildFrontifyConfig } from "@/lib/integrations/frontify";
 import { buildDriveConfig } from "@/lib/integrations/google-drive";
+import { buildAirtableConfig } from "@/lib/integrations/airtable";
 
 // Brand Brain Dateien und ihre Quellen-Prioritaet
 const BRAND_BRAIN_FILES = [
@@ -20,7 +21,7 @@ export interface BrandBrainFileStatus {
   label: string;
   fileKey: string;
   cached: boolean;
-  source: "manual" | "frontify" | "drive" | "local" | "none";
+  source: "manual" | "frontify" | "airtable" | "drive" | "local" | "none";
   manualUpload?: { uploadedAt: string; originalFilename?: string };
 }
 
@@ -28,6 +29,10 @@ export interface BrandBrainStatus {
   frontify: {
     configured: boolean;
     domain: string | null;
+  };
+  airtable: {
+    configured: boolean;
+    baseId: string | null;
   };
   drive: {
     configured: boolean;
@@ -44,6 +49,7 @@ export async function GET() {
   }
 
   const frontifyConfig = buildFrontifyConfig();
+  const airtableConfig = buildAirtableConfig();
   const driveConfig = buildDriveConfig();
 
   // Manual-Uploads laden
@@ -81,6 +87,27 @@ export async function GET() {
         }
       }
 
+      // Airtable-Cache pruefen
+      try {
+        const airtableKey = file.key === "tone-of-voice"
+          ? "airtable:tone-of-voice"
+          : file.key === "ci-rules"
+            ? "airtable:ci-rules"
+            : file.key.startsWith("glossar-")
+              ? `airtable:${file.key}`
+              : file.key === "golden-examples"
+                ? "airtable:golden-examples"
+                : null;
+        if (airtableKey) {
+          const cached = await getCachedFile(airtableKey);
+          if (cached !== null) {
+            return { key: file.key, label: file.label, fileKey: file.fileKey, cached: true, source: "airtable" as const };
+          }
+        }
+      } catch {
+        // Weiter
+      }
+
       // Drive-Cache pruefen
       try {
         const cached = await getCachedFile(file.driveKey);
@@ -105,6 +132,10 @@ export async function GET() {
     frontify: {
       configured: !!frontifyConfig,
       domain: frontifyConfig?.domain ?? null,
+    },
+    airtable: {
+      configured: !!airtableConfig,
+      baseId: airtableConfig?.baseId ?? null,
     },
     drive: {
       configured: !!driveConfig,
