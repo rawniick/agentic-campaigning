@@ -12,7 +12,7 @@ export function createBrowserClient() {
   return createClient(url, key);
 }
 
-// Service-Role-Client (umgeht RLS, fuer Backend/n8n/Webhooks)
+// Service-Role-Client (umgeht RLS, fuer Server-Actions ohne User-Session)
 // Wirft Fehler wenn kein Service Role Key gesetzt — nutze getServerClient() als sichere Alternative
 export function createServiceRoleClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

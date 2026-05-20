@@ -1,157 +1,154 @@
-# CLAUDE.md - ACE (Agentic Campaigning Engine)
+# CLAUDE.md — ACE Wingo V1 (Format-Multiplexer)
 
 ## Projekt
 
-AI-gestuetztes internes Marketing-Tool. Ein Marketer wirft einen Promo-Brief rein und
-bekommt ein Konzept (DE), Uebersetzungen (FR/IT/EN) und visuelle Assets (Canva oder
-Compositing-Fallback) zurueck. Output: ZIP zum manuellen Hochladen in Meta / Google
-Ads / CRM. Brand-Brain-getrieben (Glossar, Tone-of-Voice, Compliance-Regeln).
+ACE ist ein **Format-Multiplexer** fuer Wingo Marketing-Kampagnen. Ein Marketer
+gibt ein Briefing ein (Produkt, Preis, Kampagnenart, Botschaft) und bekommt
+**11 Formate × 4 Sprachen = 44 Assets brand-konform** als ZIP zurueck. Kein
+Konzept-Generator, kein ZIP-Export-als-Endprodukt — der Wert ist die
+deterministische, automatisierte Multi-Format-Adaption.
 
-**Branch X:** Internes 1-User-Tool. Kein RBAC, keine Auto-Distribution, kein n8n,
-keine Multi-Brand-UI, kein Cloning, keine Metrics-Sync.
+**Brand:** Wingo (Swisscom). Architektur multi-brand-ready (brand_id-Pattern),
+V1 launcht single-brand.
 
-## V3 Flow (Manueller Trigger pro Stage, 2 Approval-Gates)
+**KO-Kriterium:** 100% Brand-Konformitaet. Verzerrte Logos, falsche Farben oder
+verletzte Schutzbereiche = Asset wertlos.
+
+## Mental Model
+
+- **Layout = deterministisch** (Code-Templates, kein LLM-halluzinierter Layout)
+- **Bild = kreativ** (Library-First, AI als Fallback mit Style-Reference)
+- **Copy = LLM mit Brand-Voice-Constraints** (TOV-Matrix Art × Zielgruppe)
+- **Compliance = pass-through** (Preise + Disclaimer werden NIE vom LLM modifiziert)
+
+## 5-Gate Flow
 
 ```
-draft / input_complete
-    -> User klickt "Konzept generieren"
-concept_generated  ◄ Gate 1
-    -> Konzept anzeigen + FeedbackChat fuer Iteration
-    -> User klickt "Konzept freigeben" oder iteriert via Chat
-concept_approved
-    -> User klickt "Uebersetzen"
-translating -> translations_ready
-    -> User klickt "Assets generieren"
-rendering_assets -> assets_ready  ◄ Gate 2
-    -> User reviewed Assets, regeneriert einzelne wenn noetig
-    -> User klickt "Assets freigeben"
-assets_approved
-    -> User klickt "ZIP herunterladen" -> manuelles Upload extern
+Brief eingeben
+  → Gate 1: Copy-Approval (Headlines, Subline, TOV-aware)
+  → Gate 2: Hero-Bild-Approval (Library / AI-Gen / Upload)
+  → Gate 3: Layout-Komposition (Master mit Variant-Auswahl + Drag-in-Safezone)
+  → Gate 4: Final-Hero-Review
+  → AUTO: Multiplex auf 11 Formate × 4 Sprachen
+  → Gallery + Per-Asset Chat-Edit + ZIP-Download
 ```
+
+Skip-Buttons mit Smart-Default + Re-Open-faehig.
+
+## V1 Scope
+
+- Kampagnentypen: **Flash Sale** (V1.0) + Standard (V1.1)
+- Formate: **11 statische** — Display Standard 5 + Google Ads statisch 3 + Social statisch 3
+- Sprachen: **DE + FR + IT + EN** (Auto-Translate post Copy-Approval)
+- User: **1 User** (Single-Login, kein RBAC)
+
+**Out of V1:** Video, Display Spezial Premium (Watson/20Min/Blick/etc.),
+HTML5-Animation, Print/OOH F4/F12, Audio Spotify, Multi-User, In-App Notifications,
+Auto-Distribution, Performance-Metrics, Cloning, n8n, Canva, Frontify.
+
+Detaillierte Phasen 0–7: siehe `plans/wingo-v1.md`.
+Funktionsumfang: siehe `docs/PRD-Wingo-V1.md`.
 
 ## Tech Stack
 
-- Frontend: Next.js 16 (App Router) + React 19 + Tailwind CSS 4 + shadcn/ui
-- Backend: Next.js API Routes + Server Actions
-- AI: Anthropic Claude (Sonnet) via `src/lib/ai/claude.ts`
-- AI Providers: NanoBanana, DALL-E (Bilder), Sora/Veo3 (Video, Stretch)
-- Datenbank: Supabase (Postgres + Auth + Storage)
-- Integrations: Canva Connect API, Frontify, Google Drive, Airtable
-- Language: TypeScript strict
+- **Frontend:** Next.js 16 App Router + React 19 + Tailwind 4 + shadcn/ui
+- **Backend:** Next.js API Routes + Server Actions (kein n8n)
+- **AI:** Anthropic Claude (Sonnet 4.6) fuer Copy/Translate/Edit/Vision-QA
+- **Image-Gen:** NanoBanana / DALL-E / Imagen (Provider-Router, Library-First)
+- **Render:** Satori (statisch, default) + Puppeteer (Fallback komplex)
+- **DB:** Supabase Postgres (brand-aware Schema)
+- **Storage:** Supabase Storage (`campaign-assets`, `hero-library` Buckets)
+- **Brand-Source:** Git-versioniert in `/brand-assets/wingo/`
+- **Hosting:** Vercel
 
-## Projektstruktur
+## Projektstruktur (nach Phase 0)
 
 ```
 src/
   app/
-    layout.tsx              # Root Layout mit Sidebar
-    page.tsx                # Dashboard
-    campaigns/
-      page.tsx              # Kampagnen-Liste
-      new/page.tsx          # Promo-Input Formular
-      [id]/
-        page.tsx            # Single-Page Detail (alle V3-Sektionen)
-        content/page.tsx    # Detail-Asset-Ansicht (optional)
-    settings/
-      brand-brain/page.tsx  # Brand Brain Status
-      canva/page.tsx        # Canva OAuth + Template-Mapping
-    actions/
-      approve.ts            # approveStage / rejectStage Server Actions
-    api/
-      campaigns/            # CRUD
-      generate/
-        concept/            # Konzept-Generierung
-        translate/          # Uebersetzung
-        content/            # Asset-Generierung
-        hero-images/        # 3 Hero-Kandidaten
-        channel-adapt/      # Kanal-Adaptionen (optional)
-      feedback/             # Konzept-Iteration via Chat
-      assets/[id]/
-        select/             # Hero-Kandidat auswaehlen
-        regenerate/         # Einzelnes Asset neu generieren
-        poll/               # Video-Status Polling
-      export/
-        download/           # ZIP-Download (Briefing + Assets)
-      integrations/canva/   # OAuth, Templates, Mappings, Status
-      brand-brain/          # Frontify, Drive, Airtable
+    layout.tsx              # Minimaler Root Layout
+    page.tsx                # Dashboard (Empty State Phase 0)
+    login/, signup/, auth/  # Auth-Scaffold
+    globals.css
   components/
-    ui/                     # shadcn/ui
-    dashboard/              # Sidebar, CampaignCard, GenerateActions, StatusBadge
-    forms/                  # PromoInputForm
-    briefing/               # ConceptCard, ChannelPreview, TranslationView
-    feedback/               # FeedbackChat (Konzept-Iteration)
-    assets/                 # AssetGrid, HeroImagePicker, GenerationProgress
-    export/                 # ExportPanel (ZIP-Download)
+    ui/                     # shadcn primitives (preserved)
   lib/
     ai/
-      claude.ts             # API Client + Retry
-      providers/            # AI Provider Router (Bild/Video)
-      prompts/              # concept-generator, translator, channel-adapter,
-                            # compliance-checker, concept-feedback-responder
-      brand-brain/          # loader, context-builder, frontify-loader
-      validation/           # price-validator, char-limit, compliance
+      claude.ts             # Anthropic SDK Wrapper (minimal)
+    auth/
+      get-user.ts           # Auth helper
     db/
-      supabase.ts
-      queries/              # campaigns, concepts, translations, assets,
-                            # feedback, audit, canva-mappings
-    integrations/
-      canva.ts              # Template-Filling (Mapping-getrieben)
-      canva-api.ts          # Canva Connect REST
-      canva-oauth.ts        # OAuth2 PKCE
-      storage.ts            # Supabase Storage (campaign-assets bucket)
-      google-drive.ts       # Brand Brain (read-only)
-      airtable.ts           # Brand Brain Datasource
-      frontify.ts           # CI/Tone-of-Voice
-    compositing/            # sharp-basierter Fallback wenn Canva fehlt
-    schemas/                # Zod: promo-input, campaign
-    mappers/                # promo-to-campaign, campaign-to-promo-input
-brand-brain/                # Lokaler Fallback fuer Dev
-supabase/migrations/        # 001-014
+      supabase.ts           # Service-Role + Server-Client Factories
+    supabase/
+      client.ts, server.ts, middleware.ts  # SSR Variants
+    utils.ts                # cn() helper
+  middleware.ts             # Auth-Redirect
+
+brand-assets/wingo/         # Brand source of truth (NICK pflegt)
+  tokens.json               # Farben, Fonts, Spacing, Safezones, Logo-Specs
+  glossar.json              # Translator-Passthrough-Terms
+  logos/, fonts/, samples/, ai-label/  # Files
+
+docs/PRD-Wingo-V1.md        # Product Requirements
+plans/wingo-v1.md           # Phasen-Plan
+supabase/migrations/        # leer (Phase 0.C bootstraps fresh)
 ```
+
+Phase 1+ baut hier `src/app/admin/`, `src/app/campaigns/`, `src/lib/brand/`,
+`src/lib/render/`, `src/templates/`, `src/lib/db/queries/` schrittweise auf.
 
 ## Coding Conventions
 
 - TypeScript strict, keine `any`
 - Zod fuer alle Validierungen
 - Server Components Default, Client nur mit `'use client'`
-- API Routes fuer Webhooks, Server Actions fuer Mutationen
+- API Routes fuer Webhooks / Streaming, Server Actions fuer Mutationen
 - Tailwind + shadcn/ui
-- Deutsche Kommentare fuer Business-Logik
+- Deutsche Kommentare fuer Business-Logik wo nicht trivial
 - try/catch mit `{ error: string, details?: unknown }`
-
-## Prompt Engineering
-
-- Jeder Prompt eigene Datei in `src/lib/ai/prompts/`
-- Template Literals mit Variablen aus Brand Brain Context
-- Alle Calls ueber `src/lib/ai/claude.ts`
-- JSON Output erzwingen via System-Prompt
-- Post-Call: Preis-Validierung -> Zeichenlimit -> Compliance
-- Temperature: 0.3 (Fakten), 0.7 (Kreativ), 0.5 (Iteration)
 
 ## Business-Regeln (STRICT)
 
-- Preise NIEMALS runden. Input = Output exakt.
-- Disclaimer 1:1, NIE AI-modifiziert
-- Glossar hat IMMER Vorrang
-- FR ~15-20% laenger als DE -> Limits anpassen
-- SEA Headlines: HARD 30 Zeichen, Descriptions: HARD 90
-- "5G im Swisscom Netz" = Pflicht bei 5G-Produkten
-- Kein Claim ohne Beleg im Input
+- **Preise NIEMALS via LLM.** Input-String = Output-String pixel-exakt.
+- **Disclaimer NIEMALS via LLM.** Aus `disclaimers`-Table pro Zielsprache geladen.
+- **Glossar hat Vorrang.** Wingo-Terms (z.B. "Wingo Mobile Swiss") bleiben in jeder
+  Sprache identisch.
+- **AI-Bilder:** AI-Label-Asset muss visuell eingebettet sein. Pflicht laut Brand Manual.
+- **5G-Hinweis "5G im Swisscom Netz"** ist Pflicht bei 5G-Produkten (matched via
+  `disclaimers.conditions_json`).
+- **Logo-Konformitaet:** Aspect-Ratio darf nicht verzerren (Vision-QA-Check).
 
-## Was NICHT mehr im Scope ist (V3 Branch X)
+## Brand-Source (`/brand-assets/wingo/`)
 
-- ~~RBAC (4 Rollen, Profile-Tabelle)~~ - 1 User
-- ~~In-App Notifications~~ - 1 User
-- ~~Auto-Upload Meta / Google Ads~~ - User laedt manuell hoch
-- ~~Campaign Metrics Sync~~ - kommt zurueck wenn Distribute zurueckkommt
-- ~~Campaign Cloning / Templates~~ - YAGNI
-- ~~n8n Workflows~~ - Manuelle Trigger reichen
-- ~~v2 Grobkonzept + Detailkonzept Trennung~~ - 1 Konzept-Stage mit Chat-Iteration
-- ~~Strategie-Vorschlag mit 2 Richtungen~~ - claim_direction aus Brief reicht
-- ~~Eingabe-Review-Page~~ - Submit ist Bestaetigung
-- ~~AI-Video~~ - defer
+Single source of truth. `tokens.json` wird beim App-Start mit Zod validiert —
+fehlende Pflicht-Tokens fuehren zum Fail-Fast (Absicht: Brand-Drift soll frueh
+weh tun).
+
+Pflichtinhalt:
+- `tokens.json` mit nicht-leeren Werten in `colors.primary`, `colors.secondary`,
+  `colors.background_primary`, `typography.fonts.headline`, `logo.variants.kombi`
+- `logos/wingo-lockup.svg` (Default-Variante)
+- `fonts/<headline>.woff2` falls Self-Hosting
+- `ai-label/wingo-ai-label.svg`
+- `glossar.json` mit `passthrough_terms`
+
+## Test-Strategie
+
+- **Unit:** Vitest fuer pure Logik (token-loader, conditions-matcher, position-propagation)
+- **Integration:** Server-Actions mit echter Supabase (lokales `supabase start`)
+- **E2E:** Playwright (optional ab Phase 2 fuer Gate-Flow)
+- **Vision-QA:** in CI gemockt (Claude Vision Mock-Responses), real-call gegated
 
 ## Deployment
 
-- Hosting: Vercel (Phase 1), evtl. self-hosted spaeter
-- Crons (zukuenftig): Vercel Cron oder Supabase pg_cron fuer Brand-Brain-Sync
+- Vercel (Frontend + API Routes + Edge-Functions)
+- Supabase fuer DB + Storage + Auth
+- ENV-Vars fuer ANTHROPIC_API_KEY, NEXT_PUBLIC_SUPABASE_URL/ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
+  Image-Gen-Provider-Keys (NANOBANANA, OPENAI etc.) ab Phase 5
+
+## Workflow
+
+Wenn der User mit `/grill-me` Anforderungen klaert: lies `docs/PRD-Wingo-V1.md`
+zuerst. Wenn `prd-to-plan` oder Implementation: lies zusaetzlich `plans/wingo-v1.md`.
+Memory-Files in `~/.claude/projects/.../memory/` enthalten Nicks Praeferenzen +
+Pivot-Kontext.

@@ -5,9 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PATHS = ["/login", "/signup", "/auth"];
 
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((path) => pathname.startsWith(path))
-    || pathname.startsWith("/api/webhooks")
-    || pathname.startsWith("/api/integrations/canva");
+  return PUBLIC_PATHS.some((path) => pathname.startsWith(path));
 }
 
 export async function updateSession(request: NextRequest) {
