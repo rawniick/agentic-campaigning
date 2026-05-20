@@ -4,6 +4,10 @@ import { FlashSaleHalfpage } from "./flash_sale/FlashSaleHalfpage";
 import { FlashSaleRectangle } from "./flash_sale/FlashSaleRectangle";
 import { FlashSaleBillboard } from "./flash_sale/FlashSaleBillboard";
 import { FlashSaleMetaImage } from "./flash_sale/FlashSaleMetaImage";
+import { FlashSaleRicchi } from "./flash_sale/FlashSaleRicchi";
+import { FlashSaleWideboard } from "./flash_sale/FlashSaleWideboard";
+import { FlashSaleLandscape } from "./flash_sale/FlashSaleLandscape";
+import { FlashSaleSquare } from "./flash_sale/FlashSaleSquare";
 
 // Template-Registry — mapped (formatCode, campaignArt) auf eine konkrete
 // React-Komponente. Phase 3 fuellt die 11 V1-Formate Schritt fuer Schritt.
@@ -51,6 +55,44 @@ const REGISTRY: TemplateEntry[] = [
   },
   {
     formatCode: "meta_image",
+    campaignArt: "flash_sale",
+    component: FlashSaleMetaImage as TemplateComponent,
+  },
+  {
+    formatCode: "dv360_ricchi",
+    campaignArt: "flash_sale",
+    component: FlashSaleRicchi as TemplateComponent,
+  },
+  {
+    formatCode: "dv360_wideboard_xl",
+    campaignArt: "flash_sale",
+    component: FlashSaleWideboard as TemplateComponent,
+  },
+  // 1200x628 — same component, three distribution channels.
+  {
+    formatCode: "google_pmax_static",
+    campaignArt: "flash_sale",
+    component: FlashSaleLandscape as TemplateComponent,
+  },
+  {
+    formatCode: "google_discovery",
+    campaignArt: "flash_sale",
+    component: FlashSaleLandscape as TemplateComponent,
+  },
+  {
+    formatCode: "reddit_link_image",
+    campaignArt: "flash_sale",
+    component: FlashSaleLandscape as TemplateComponent,
+  },
+  {
+    formatCode: "google_sea_ad_ext",
+    campaignArt: "flash_sale",
+    component: FlashSaleSquare as TemplateComponent,
+  },
+  // 1080x1920 — TikTok identische Dimension wie Meta Image. Reuse erlaubt
+  // brand-/format-spezifische Filenames bei identischem Layout.
+  {
+    formatCode: "tiktok_image",
     campaignArt: "flash_sale",
     component: FlashSaleMetaImage as TemplateComponent,
   },

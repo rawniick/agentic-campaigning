@@ -12,6 +12,7 @@ import { runMultiplex } from "../runMultiplex";
 import { listRegisteredFormatCodes } from "../../../templates/wingo/registry";
 import type { Brief } from "../../schemas/brief";
 import type { BrandConfig } from "../../brand/loadBrand";
+import type { VisionQAClient, VisionQAResult } from "../../qa/runVisionQA";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -184,6 +185,42 @@ describe("runMultiplex", () => {
       [campaignId]
     );
     expect(r.rows[0].status).toBe("done");
+  });
+
+  it("runs vision-QA on every rendered asset when a vision client is provided", async () => {
+    const storage = createInMemoryStorage();
+    const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+    const qaResult: VisionQAResult = {
+      score: 0.85,
+      checks: {
+        logo_bounds: 0.9,
+        color_match: 0.95,
+        safezone: 0.8,
+        style_consistency: 0.75,
+      },
+    };
+    const visionClient: VisionQAClient = {
+      analyze: vi.fn().mockResolvedValue(qaResult),
+    };
+
+    await runMultiplex(db, storage, {
+      campaignId,
+      brandConfig,
+      logoUrl: "memory://logo.svg",
+      renderToPng: renderSpy,
+      visionClient,
+    });
+
+    const expectedCount = listRegisteredFormatCodes("flash_sale").length;
+    expect(visionClient.analyze).toHaveBeenCalledTimes(expectedCount);
+
+    const r = await db.query<{ vision_qa_score: string | null }>(
+      `SELECT vision_qa_score FROM assets WHERE campaign_id = $1`,
+      [campaignId]
+    );
+    for (const row of r.rows) {
+      expect(Number(row.vision_qa_score)).toBeCloseTo(0.85, 3);
+    }
   });
 
   it("transitions campaign status to failed when no render succeeds", async () => {

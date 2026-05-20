@@ -6,6 +6,7 @@ import { getV1Formats, type FormatSpec } from "../db/queries/format-specs";
 import { createAsset } from "../db/queries/assets";
 import { renderToPng as defaultRenderToPng } from "../render/renderToPng";
 import { transitionGate, type CampaignState } from "../state/transitionGate";
+import { runVisionQA, type VisionQAClient } from "../qa/runVisionQA";
 import {
   findTemplate,
   type CampaignArt,
@@ -22,6 +23,7 @@ export interface RunMultiplexInput {
     node: ReactElement,
     opts: { width: number; height: number }
   ) => Promise<Buffer>;
+  visionClient?: VisionQAClient;
 }
 
 export interface MultiplexedAsset {
@@ -123,7 +125,8 @@ async function renderOneFormat(
   component: TemplateComponent,
   data: GateData,
   logoUrl: string,
-  renderImpl: NonNullable<RunMultiplexInput["renderToPng"]>
+  renderImpl: NonNullable<RunMultiplexInput["renderToPng"]>,
+  visionClient: VisionQAClient | undefined
 ): Promise<MultiplexedAsset> {
   const jsx = React.createElement(component, {
     tokens: brandConfig.tokens,
@@ -150,6 +153,16 @@ async function renderOneFormat(
     file_size_bytes: png.length,
     mime_type: "image/png",
   });
+
+  if (visionClient) {
+    await runVisionQA(db, visionClient, {
+      assetId: asset.id,
+      imageBytes: png,
+      imageMimeType: "image/png",
+      brandPrimaryHex: brandConfig.tokens.colors.primary.hex,
+      formatCode: format.code,
+    });
+  }
 
   return {
     formatCode: format.code,
@@ -203,7 +216,8 @@ export async function runMultiplex(
           component,
           data,
           input.logoUrl,
-          renderImpl
+          renderImpl,
+          input.visionClient
         )
       )
     );
