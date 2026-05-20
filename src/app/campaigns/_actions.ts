@@ -4,68 +4,97 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db/server";
 import { getActiveBrandConfig } from "@/lib/brand/server";
-import { createSupabaseStorage } from "@/lib/storage/supabaseStorage";
-import { callClaude } from "@/lib/ai/claude";
-import { runCampaignTracerBullet } from "@/lib/orchestrate/runCampaignTracerBullet";
+import {
+  callClaude,
+  type ClaudeCallOptions,
+  type ClaudeResponse,
+} from "@/lib/ai/claude";
 import { briefSchema, type Brief } from "@/lib/schemas/brief";
+import { createCampaign } from "@/lib/db/queries/campaigns";
+import { matchDisclaimers } from "@/lib/db/queries/disclaimers";
+import { generateCopy, type CopyOutput } from "@/lib/copy/generateCopy";
+import { writeAudit } from "@/lib/db/queries/audit";
 import { getProductById } from "@/lib/db/queries/products";
+
+// Bind callClaude's generic to CopyOutput fuer generateCopy's llm-Parameter
+const claudeForCopy = callClaude as (
+  opts: ClaudeCallOptions
+) => Promise<ClaudeResponse<CopyOutput>>;
 
 interface SubmitBriefArgs {
   brief: Brief;
   productId?: string;
 }
 
-// Server-Action fuer Phase 1 Tracer Bullet: nimmt das Brief entgegen,
-// faehrt die Pipeline einmal durch (1 Format, DE) und redirect zur
-// Campaign-Detail-Page.
+// Phase 2 Submit: createCampaign + generateCopy — danach landet User auf
+// /campaigns/[id] und durchlaeuft die 5 Gates manuell.
 export async function submitBriefAction(input: SubmitBriefArgs) {
   const brief = briefSchema.parse(input.brief);
 
   const db = getDb();
   const brandConfig = await getActiveBrandConfig();
-  const storage = createSupabaseStorage();
 
-  // Format-Spec fuer die Halfpage suchen (V1 Tracer = dv360_halfpage)
-  const format = brandConfig.formats.find((f) => f.code === "dv360_halfpage");
-  if (!format) {
-    throw new Error("V1-Format dv360_halfpage nicht in format_specs geseeded");
-  }
-
-  // Produkt-Context fuer Disclaimer-Matching aus Produkt-Master oder Brief
-  let productContext: { category: "mobile" | "tv" | "internet"; network?: "5g" | "4g" | "other" };
+  let productContext: {
+    category: "mobile" | "tv" | "internet";
+    network?: "5g" | "4g" | "other";
+  };
   if (input.productId) {
     const product = await getProductById(db, input.productId);
-    if (!product) {
-      throw new Error(`Produkt ${input.productId} nicht gefunden`);
-    }
+    if (!product) throw new Error(`Produkt ${input.productId} nicht gefunden`);
     productContext = {
       category: product.category,
-      network: product.network === "5g_swisscom" ? "5g" : product.network === "4g_swisscom" ? "4g" : product.network === "other" ? "other" : undefined,
+      network:
+        product.network === "5g_swisscom"
+          ? "5g"
+          : product.network === "4g_swisscom"
+            ? "4g"
+            : product.network === "other"
+              ? "other"
+              : undefined,
     };
   } else {
     productContext = { category: brief.kampagne.produkt_kategorie };
   }
 
-  // Phase 1: Hero-Bild und Logo als externe Sample-URLs (Placeholder).
-  // Wird in Phase 5 durch Library + AI ersetzt.
-  const heroImageUrl =
-    "https://placehold.co/300x200/EFEFEF/E61E2A/png?text=Wingo+Hero";
-  const logoUrl =
-    "https://placehold.co/80x24/EFEFEF/E61E2A/png?text=wingo";
-
-  const result = await runCampaignTracerBullet({
-    db,
-    storage,
-    brandConfig,
+  const campaign = await createCampaign(db, {
+    brand_id: brandConfig.brand.id,
+    product_id: input.productId,
     brief,
+  });
+
+  await writeAudit(db, {
+    campaignId: campaign.id,
+    event: "BRIEF_SUBMITTED",
+    payload: { brief },
+  });
+
+  // Transition created -> copy_pending (technische Transition, kein Gate)
+  await db.query(
+    `UPDATE campaigns SET status = 'copy_pending', updated_at = now() WHERE id = $1`,
+    [campaign.id]
+  );
+
+  // Sofort Copy generieren — User trifft auf /campaigns/[id] mit 3 Headlines
+  const disclaimers = await matchDisclaimers(
+    db,
+    brandConfig.brand.id,
+    productContext
+  );
+  await generateCopy(db, {
+    campaignId: campaign.id,
+    brief,
+    brandConfig,
     language: "de",
-    format,
-    productContext,
-    heroImageUrl,
-    logoUrl,
-    llm: callClaude,
+    disclaimers,
+    llm: claudeForCopy,
+  });
+
+  await writeAudit(db, {
+    campaignId: campaign.id,
+    event: "COPY_GENERATED",
+    payload: { language: "de" },
   });
 
   revalidatePath("/");
-  redirect(`/campaigns/${result.campaign.id}`);
+  redirect(`/campaigns/${campaign.id}`);
 }

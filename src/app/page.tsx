@@ -4,20 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function DashboardPage() {
   return (
-    <div className="mx-auto max-w-4xl px-6 py-16">
+    <div className="mx-auto max-w-5xl px-6 py-16">
       <h1 className="text-4xl font-bold">ACE — Wingo Campaign Engine</h1>
       <p className="mt-2 text-muted-foreground">
-        Phase 1 Tracer Bullet. Brief → Halfpage 300×600 DE end-to-end.
+        Phase 2 — 5-Gate-Flow. Brief → Copy → Hero → Layout → Final → Asset.
       </p>
 
-      <div className="mt-12 grid gap-6 sm:grid-cols-2">
+      <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle>Neue Kampagne</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Brief eingeben und eine Halfpage rendern.
+              Brief eingeben und durch 5 Gates fuehren.
             </p>
             <Link href="/campaigns/new" className="mt-4 inline-block">
               <Button>Brief starten</Button>
@@ -30,11 +30,23 @@ export default function DashboardPage() {
             <CardTitle>Produkte</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Wingo Master-Daten verwalten.
-            </p>
+            <p className="text-sm text-muted-foreground">Master-Daten.</p>
             <Link href="/admin/products" className="mt-4 inline-block">
-              <Button variant="outline">Produkte ansehen</Button>
+              <Button variant="outline">Produkte</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Brand Voice</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Default-TOV + Matrix Art × Zielgruppe.
+            </p>
+            <Link href="/admin/brand-voice" className="mt-4 inline-block">
+              <Button variant="outline">Brand Voice</Button>
             </Link>
           </CardContent>
         </Card>

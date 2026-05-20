@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/server";
-
-export const dynamic = "force-dynamic";
-
 import { getCampaignById } from "@/lib/db/queries/campaigns";
 import { getAssetsForCampaign } from "@/lib/db/queries/assets";
-import { Button } from "@/components/ui/button";
+import { GateView } from "./GateView";
+
+export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -19,7 +18,28 @@ export default async function CampaignDetailPage({ params }: PageProps) {
   const campaign = await getCampaignById(db, id);
   if (!campaign) notFound();
 
-  const assets = await getAssetsForCampaign(db, id);
+  const [assets, copyRes, heroRes, layoutRes] = await Promise.all([
+    getAssetsForCampaign(db, id),
+    db.query<{
+      headlines: string[];
+      subline: string;
+      cta_label: string;
+      selected_headline_idx: number | null;
+      is_approved: boolean;
+    }>(
+      `SELECT headlines, subline, cta_label, selected_headline_idx, is_approved
+         FROM campaign_copy WHERE campaign_id = $1 AND language = 'de'`,
+      [id]
+    ),
+    db.query<{ storage_url: string; is_approved: boolean }>(
+      `SELECT storage_url, is_approved FROM campaign_hero WHERE campaign_id = $1`,
+      [id]
+    ),
+    db.query<{ master_format: string; variant: string; is_approved: boolean }>(
+      `SELECT master_format, variant, is_approved FROM campaign_layout WHERE campaign_id = $1`,
+      [id]
+    ),
+  ]);
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
@@ -28,7 +48,7 @@ export default async function CampaignDetailPage({ params }: PageProps) {
           href="/"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← Zurück zum Dashboard
+          ← Dashboard
         </Link>
       </div>
 
@@ -48,42 +68,20 @@ export default async function CampaignDetailPage({ params }: PageProps) {
         </span>
       </div>
 
-      <h2 className="mt-10 text-xl font-semibold">
-        Assets ({assets.length})
-      </h2>
-
-      {assets.length === 0 ? (
-        <p className="mt-4 text-sm text-muted-foreground">
-          Noch keine Assets gerendert.
-        </p>
-      ) : (
-        <div className="mt-6 grid gap-6 sm:grid-cols-2">
-          {assets.map((a) => (
-            <div
-              key={a.id}
-              className="rounded-md border bg-card p-4 shadow-sm"
-            >
-              <div className="mb-3 text-xs text-muted-foreground">
-                {a.language.toUpperCase()} · {a.mime_type ?? "image/png"}
-                {a.file_size_bytes
-                  ? ` · ${Math.round(a.file_size_bytes / 1024)} KB`
-                  : ""}
-              </div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={a.storage_url}
-                alt={`Asset ${a.id}`}
-                className="w-full rounded border bg-white"
-              />
-              <div className="mt-3 flex gap-2">
-                <a href={a.storage_url} download target="_blank" rel="noreferrer">
-                  <Button size="sm">Download</Button>
-                </a>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="mt-10">
+        <GateView
+          campaignId={id}
+          status={campaign.status}
+          copy={copyRes.rows[0] ?? null}
+          hero={heroRes.rows[0] ?? null}
+          layout={layoutRes.rows[0] ?? null}
+          assets={assets.map((a) => ({
+            id: a.id,
+            storage_url: a.storage_url,
+            language: a.language,
+          }))}
+        />
+      </div>
 
       <details className="mt-10 rounded-md border bg-card p-4">
         <summary className="cursor-pointer text-sm font-medium">
