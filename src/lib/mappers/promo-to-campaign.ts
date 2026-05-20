@@ -3,10 +3,10 @@ import type { Campaign } from "@/types/database";
 
 type CampaignInsert = Omit<
   Campaign,
-  "id" | "created_at" | "updated_at" | "published_at" | "total_tokens_used" | "total_api_cost_chf" | "n8n_resume_url" | "n8n_execution_id"
+  "id" | "created_at" | "updated_at" | "published_at" | "total_tokens_used" | "total_api_cost_chf"
 >;
 
-// PromoInput (verschachtelt, 6 Sektionen) → Campaign (flach) fuer DB-Insert
+// PromoInput (verschachtelt, 6 Sektionen) -> Campaign (flach) fuer DB-Insert
 export function mapPromoInputToCampaign(input: PromoInput): CampaignInsert {
   // Aktive Kanaele als String-Array extrahieren
   const channels: string[] = [];
@@ -40,7 +40,7 @@ export function mapPromoInputToCampaign(input: PromoInput): CampaignInsert {
     product_network: input.produktuebersicht.network ?? null,
     product_link: input.produktuebersicht.link ?? null,
 
-    // Pricing (aus produktuebersicht.promoangebot)
+    // Pricing
     price_old: input.produktuebersicht.promoangebot.price_old ?? null,
     price_new: input.produktuebersicht.promoangebot.price_new,
     currency: input.produktuebersicht.promoangebot.currency,
@@ -68,7 +68,7 @@ export function mapPromoInputToCampaign(input: PromoInput): CampaignInsert {
     sonstiges_sujet: input.sujets.sonstiges_sujet ?? null,
     infos_umsetzung: input.sujets.infos_umsetzung ?? null,
 
-    // Sektion 4: Sonstiges (inkl. Compliance)
+    // Sektion 4: Sonstiges
     umsetzung: input.sonstiges.umsetzung ?? null,
     auftraggeber: input.sonstiges.auftraggeber ?? null,
     freigabe: input.sonstiges.freigabe ?? null,
@@ -77,7 +77,6 @@ export function mapPromoInputToCampaign(input: PromoInput): CampaignInsert {
     disclaimer_text: input.sonstiges.disclaimer_text ?? null,
     five_g_badge: input.sonstiges.five_g_badge,
     swisscom_netz_hinweis: input.sonstiges.swisscom_netz_hinweis,
-    legal_review_required: input.sonstiges.legal_review_required,
 
     // Sektion 5: Timeline
     timeline: input.timeline,
@@ -91,16 +90,7 @@ export function mapPromoInputToCampaign(input: PromoInput): CampaignInsert {
     strategy_options: null,
     selected_strategy_index: null,
 
-    // v2 Flow: Neue Kampagnen nutzen immer v2
-    flow_version: 2,
-    input_confirmed_at: null,
-    input_confirmed_by: null,
-
-    // P0.3: Hero-Bild
+    // Hero-Bild
     hero_image_asset_id: null,
-
-    // P3.1: Templates + Klonen
-    is_template: false,
-    cloned_from_id: null,
   };
 }

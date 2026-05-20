@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCampaignById, updateCampaign } from "@/lib/db/queries/campaigns";
-import { logAuditEvent } from "@/lib/db/queries/approvals";
-import { resumeN8nWait } from "@/lib/integrations/n8n";
 import { getAuthUser } from "@/lib/auth/get-user";
 
 // GET /api/campaigns/[id] - Einzelne Kampagne lesen
@@ -30,8 +28,8 @@ const ALLOWED_PATCH_FIELDS = new Set([
   "discount_display", "discount_duration", "price_conditions",
   "start_date", "end_date", "target_audiences", "business_goal",
   "claim_direction", "campaign_narrative", "channels", "languages",
-  "disclaimer_text", "five_g_badge", "swisscom_netz_hinweis", "legal_review_required",
-  "restrictions", "strategy_options", "selected_strategy_index",
+  "disclaimer_text", "five_g_badge", "swisscom_netz_hinweis",
+  "restrictions",
 ]);
 
 // PATCH /api/campaigns/[id] - Kampagne updaten (nur erlaubte Felder)
@@ -59,23 +57,6 @@ export async function PATCH(
     }
 
     const campaign = await updateCampaign(id, updates);
-
-    // n8n Resume: Wenn Strategie ausgewaehlt wurde, Wait-Node fortsetzen
-    if (updates.status === "strategy_selected" && updates.selected_strategy_index !== undefined) {
-      try {
-        await resumeN8nWait(id, "strategy", {
-          action: "strategy_selected",
-          campaignId: id,
-          strategyIndex: updates.selected_strategy_index,
-        });
-        await logAuditEvent(id, "n8n_strategy_resumed", {
-          selected_strategy_index: updates.selected_strategy_index,
-        });
-      } catch {
-        // n8n-Resume ist optional, Fehler nicht propagieren
-      }
-    }
-
     return NextResponse.json(campaign);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unbekannter Fehler";

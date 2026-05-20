@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCampaignById, trackApiUsage, updateCampaignStatus } from "@/lib/db/queries/campaigns";
 import { getSelectedConcept } from "@/lib/db/queries/concepts";
 import { createTranslation } from "@/lib/db/queries/translations";
-import { createApproval, logAuditEvent } from "@/lib/db/queries/approvals";
+import { logAuditEvent } from "@/lib/db/queries/audit";
 import { mapCampaignToPromoInput } from "@/lib/mappers/campaign-to-promo-input";
 import { buildPromptContext } from "@/lib/ai/brand-brain/context-builder";
 import { buildTranslatorPrompt, type TargetLanguage } from "@/lib/ai/prompts/translator";
@@ -211,9 +211,9 @@ export async function POST(request: NextRequest) {
     const failedLangs = results.filter((r) => "error" in r);
 
     if (successfulLangs.length > 0) {
-      // Mindestens 1 Sprache erfolgreich: Status updaten + Approval erstellen
+      // Mindestens 1 Sprache erfolgreich: Status auf translations_ready
+      // (kein Approval-Gate — User reviewed inline und triggert Asset-Generierung manuell)
       await updateCampaignStatus(campaignId, "translations_ready");
-      await createApproval(campaignId, "translations");
       await logAuditEvent(campaignId, "translations_generated", {
         languages,
         successful: successfulLangs.length,

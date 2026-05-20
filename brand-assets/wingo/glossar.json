@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "schema_version": "1.0.0",
+    "brand": "wingo",
+    "description": "Terms die der Translator NICHT antastet. Jeder String in passthrough_terms erscheint 1:1 in DE/FR/IT/EN."
+  },
+  "passthrough_terms": [
+    "Wingo",
+    "Wingo Mobile",
+    "Wingo Internet",
+    "Wingo TV",
+    "Wingo Mobile Swiss",
+    "Swisscom",
+    "5G im Swisscom Netz",
+    "4G",
+    "5G"
+  ],
+  "translation_overrides": {
+    "de": {
+    },
+    "fr": {
+    },
+    "it": {
+    },
+    "en": {
+    },
+    "_doc": "Falls fuer einen DE-Term eine spezifische Uebersetzung erzwungen werden soll (z.B. Wingo-eigene Phrase die nicht woertlich uebersetzt werden darf), hier eintragen: 'DE Term' -> 'FR-spezifischer Term'"
+  },
+  "forbidden_phrases": {
+    "_doc": "Phrasen die nie in einem Asset vorkommen duerfen (rechtlich / brand-konflikt). Wird im Compliance-Check geprueft.",
+    "list": []
+  }
+}

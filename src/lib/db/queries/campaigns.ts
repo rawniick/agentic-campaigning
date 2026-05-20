@@ -55,7 +55,7 @@ export async function getCampaignByPromoId(
 }
 
 export async function createCampaign(
-  campaign: Omit<Campaign, "id" | "created_at" | "updated_at" | "published_at" | "total_tokens_used" | "total_api_cost_chf" | "n8n_resume_url" | "n8n_execution_id">,
+  campaign: Omit<Campaign, "id" | "created_at" | "updated_at" | "published_at" | "total_tokens_used" | "total_api_cost_chf">,
   client?: SupabaseClient
 ) {
   const db = await getClient(client);
@@ -77,11 +77,6 @@ export async function updateCampaignStatus(
 ) {
   const db = await getClient(client ?? undefined);
   const updates: Record<string, unknown> = { status, ...extraFields };
-
-  // published_at automatisch setzen bei Status "published"
-  if (status === "published" && !updates.published_at) {
-    updates.published_at = new Date().toISOString();
-  }
 
   const { data, error } = await db
     .from("campaigns")
@@ -108,28 +103,6 @@ export async function updateCampaign(
     .single();
 
   if (error) throw new Error(`Campaign-Update fehlgeschlagen: ${error.message}`);
-  return data as Campaign;
-}
-
-// v2: Input bestaetigen (Editable Overview → Confirmed)
-export async function confirmInput(
-  id: string,
-  userId: string,
-  client?: SupabaseClient
-) {
-  const db = await getClient(client);
-  const { data, error } = await db
-    .from("campaigns")
-    .update({
-      status: "input_confirmed",
-      input_confirmed_at: new Date().toISOString(),
-      input_confirmed_by: userId,
-    })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) throw new Error(`Input-Bestaetigung fehlgeschlagen: ${error.message}`);
   return data as Campaign;
 }
 

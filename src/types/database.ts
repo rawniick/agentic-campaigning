@@ -1,35 +1,19 @@
-// Typen abgeleitet aus Supabase Schema (001_initial_schema.sql.sql)
+// Typen abgeleitet aus Supabase Schema (V3 — Branch X)
 
 export type CampaignStatus =
   | "draft"
   | "input_complete"
-  | "strategy_proposed"
-  | "strategy_selected"
+  // Konzept-Phase
   | "concept_generated"
+  | "concept_feedback"
   | "concept_approved"
+  // Translate-Phase
   | "translating"
   | "translations_ready"
-  | "translations_approved"
+  // Asset-Phase
   | "rendering_assets"
   | "assets_ready"
-  | "assets_approved"
-  | "distributing"
-  | "published"
-  | "archived"
-  // v2 Flow
-  | "input_review"
-  | "input_confirmed"
-  | "strategies_generated"
-  | "draft_concept_generated"
-  | "draft_concept_feedback"
-  | "draft_concept_approved"
-  | "detail_concept_generated"
-  | "detail_concept_feedback"
-  | "detail_concept_approved";
-
-export type ApprovalStage = "concept" | "translations" | "assets" | "draft_concept" | "detail_concept";
-export type ConceptType = "draft" | "detail" | "legacy";
-export type ApprovalStatus = "pending" | "approved" | "rejected" | "revision_requested";
+  | "assets_approved";
 
 export interface Campaign {
   id: string;
@@ -38,11 +22,6 @@ export interface Campaign {
   campaign_type: string;
   status: CampaignStatus;
   created_by: string | null;
-
-  // Flow Version (1 = legacy, 2 = iterativer Feedback-Flow)
-  flow_version: number;
-  input_confirmed_at: string | null;
-  input_confirmed_by: string | null;
 
   // Produkt
   product_name: string;
@@ -81,7 +60,6 @@ export interface Campaign {
   disclaimer_text: string | null;
   five_g_badge: boolean;
   swisscom_netz_hinweis: boolean;
-  legal_review_required: boolean;
   restrictions: string[];
 
   // Tracking (DECIMAL-Spalten kommen als string von Supabase)
@@ -108,69 +86,13 @@ export interface Campaign {
   bereich: string | null;
   timeline: TimelineEntry[] | null;
 
-  // n8n Orchestrierung
-  n8n_resume_url: string | null;
-  n8n_execution_id: string | null;
-
-  // P0.3: Hero-Bild Referenz
+  // Hero-Bild Referenz
   hero_image_asset_id: string | null;
-
-  // P3.1: Templates + Klonen
-  is_template: boolean;
-  cloned_from_id: string | null;
 
   // Timestamps
   created_at: string;
   updated_at: string;
   published_at: string | null;
-}
-
-// P2.1: RBAC
-export type UserRole = "marketing" | "creative" | "legal" | "admin";
-
-export interface Profile {
-  id: string;
-  email: string;
-  full_name: string | null;
-  role: UserRole;
-  avatar_url: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// P2.2: Notifications
-export type NotificationType =
-  | "approval_request"
-  | "approved"
-  | "rejected"
-  | "revision_requested"
-  | "distribution_complete"
-  | "assets_ready"
-  | "pipeline_started";
-
-export interface Notification {
-  id: string;
-  user_id: string;
-  campaign_id: string | null;
-  type: NotificationType;
-  title: string;
-  body: string | null;
-  is_read: boolean;
-  created_at: string;
-}
-
-// P3.3: Campaign Metrics
-export interface CampaignMetric {
-  id: string;
-  campaign_id: string;
-  platform: string;
-  date: string;
-  impressions: number;
-  clicks: number;
-  spend_chf: number | string;
-  conversions: number;
-  ctr: number | string | null;
-  cpc_chf: number | string | null;
 }
 
 export interface TimelineEntry {
@@ -205,20 +127,16 @@ export interface Concept {
   tokens_used: number | null;
   generated_at: string;
 
-  // v2 Flow
-  concept_type: ConceptType;
+  // Iteration via FeedbackChat
   iteration: number;
   parent_concept_id: string | null;
-  positionierung: string | null;
-  kreativ_richtung: string | null;
-  begruendung: string | null;
 }
 
-// v2 Flow: Feedback-Message (Chat-Stil)
+// FeedbackChat: Conversation-History pro Konzept-Phase
 export interface FeedbackMessage {
   id: string;
   campaign_id: string;
-  phase: "draft_concept" | "detail_concept";
+  phase: "concept";
   role: "user" | "assistant";
   content: string;
   concept_snapshot: Record<string, unknown> | null;
@@ -285,7 +203,7 @@ export interface Translation {
   glossar_terms_used: Record<string, string>[] | null;
   char_limit_warnings: CharLimitWarning[] | null;
   quality_confidence: string | null;
-  approval_status: ApprovalStatus;
+  approval_status: string;
   reviewer_notes: string | null;
   prompt_version: string | null;
   tokens_used: number | null;
@@ -321,25 +239,14 @@ export interface Asset {
   generated_at: string;
   exported_at: string | null;
 
-  // P0.1: Storage-Metadaten
+  // Storage-Metadaten
   storage_url: string | null;
   file_size_bytes: number | null;
   mime_type: string | null;
 
-  // P0.3: Hero-Bild Kandidaten
+  // Hero-Bild Kandidaten
   candidate_group_id: string | null;
   is_selected_candidate: boolean;
-}
-
-export interface Approval {
-  id: string;
-  campaign_id: string;
-  stage: ApprovalStage;
-  status: ApprovalStatus;
-  approved_by: string | null;
-  feedback: string | null;
-  created_at: string;
-  resolved_at: string | null;
 }
 
 export interface AuditLogEntry {
@@ -351,7 +258,7 @@ export interface AuditLogEntry {
   created_at: string;
 }
 
-// Phase 6: AI Provider Router
+// AI Provider Router
 export type AssetGenerationMode = "template" | "ai_image" | "ai_video" | "text_only" | "compositing";
 
 export interface AIProviderConfig {
@@ -416,7 +323,7 @@ export interface AIPromptVersion {
   created_at: string;
 }
 
-// P0.1: Canva OAuth Tokens
+// Canva OAuth Tokens
 export interface CanvaOAuthToken {
   id: string;
   brand: string;
@@ -428,23 +335,15 @@ export interface CanvaOAuthToken {
   updated_at: string;
 }
 
-// Phase 4: Distribution Tracking
-export type DistributionPlatform = "meta" | "google_ads" | "google_drive";
-export type DistributionStatus = "pending" | "uploading" | "completed" | "failed" | "partial";
-
-export interface Distribution {
+// Canva Template Mappings (013)
+export interface CanvaTemplateMapping {
   id: string;
-  campaign_id: string;
-  platform: DistributionPlatform;
-  status: DistributionStatus;
-  asset_count: number;
-  success_count: number;
-  error_count: number;
-  platform_campaign_id: string | null;
-  platform_response: Record<string, unknown> | null;
-  drive_folder_id: string | null;
-  drive_folder_url: string | null;
-  error_message: string | null;
+  brand: string;
+  canva_template_id: string;
+  canva_template_name: string | null;
+  channel: string;
+  format: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }

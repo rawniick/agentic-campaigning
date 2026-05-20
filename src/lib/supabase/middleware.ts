@@ -6,7 +6,8 @@ const PUBLIC_PATHS = ["/login", "/signup", "/auth"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname.startsWith(path))
-    || pathname.startsWith("/api/webhooks");
+    || pathname.startsWith("/api/webhooks")
+    || pathname.startsWith("/api/integrations/canva");
 }
 
 export async function updateSession(request: NextRequest) {

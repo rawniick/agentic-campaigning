@@ -4,7 +4,7 @@ import { getCampaignById } from "@/lib/db/queries/campaigns";
 import { getSelectedConcept } from "@/lib/db/queries/concepts";
 import { getTranslationsByCampaign } from "@/lib/db/queries/translations";
 import { updateAssetStatus } from "@/lib/db/queries/assets";
-import { logAuditEvent } from "@/lib/db/queries/approvals";
+import { logAuditEvent } from "@/lib/db/queries/audit";
 import { routeImageTask, routeVideoTask } from "@/lib/ai/providers/router";
 import { initializeProviders } from "@/lib/ai/providers/init";
 import { uploadFromBase64, uploadFromUrl } from "@/lib/integrations/storage";

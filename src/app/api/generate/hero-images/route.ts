@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCampaignById } from "@/lib/db/queries/campaigns";
 import { getSelectedConcept } from "@/lib/db/queries/concepts";
 import { createAsset } from "@/lib/db/queries/assets";
-import { logAuditEvent } from "@/lib/db/queries/approvals";
+import { logAuditEvent } from "@/lib/db/queries/audit";
 import { routeImageTask } from "@/lib/ai/providers/router";
 import { initializeProviders } from "@/lib/ai/providers/init";
 import { providerRegistry } from "@/lib/ai/providers/registry";

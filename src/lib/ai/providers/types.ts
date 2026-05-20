@@ -5,25 +5,21 @@
 export type AICapability = "text" | "image" | "video" | "voice" | "template";
 
 export type AITaskType =
-  // Text (existiert)
-  | "strategy_advisor"
+  // Text
   | "concept_generator"
   | "channel_adapter"
   | "translator"
   | "compliance_checker"
-  // Text v2 Flow
-  | "draft_concept_generator"
-  | "detail_concept_generator"
   | "concept_feedback"
-  // Bild (neu)
+  // Bild
   | "image_generation"
   | "image_variation"
   | "image_upscale"
-  // Video (neu)
+  // Video
   | "video_generation"
   // Voice (stretch)
   | "voice_tts"
-  // Template (existiert - Canva)
+  // Template (Canva)
   | "template_fill";
 
 // ---- Provider Identity ----
@@ -224,13 +220,10 @@ export interface RouteDecision {
 // ---- Task -> Capability Mapping ----
 
 export const TASK_CAPABILITY_MAP: Record<AITaskType, AICapability> = {
-  strategy_advisor: "text",
   concept_generator: "text",
   channel_adapter: "text",
   translator: "text",
   compliance_checker: "text",
-  draft_concept_generator: "text",
-  detail_concept_generator: "text",
   concept_feedback: "text",
   image_generation: "image",
   image_variation: "image",
@@ -242,13 +235,10 @@ export const TASK_CAPABILITY_MAP: Record<AITaskType, AICapability> = {
 
 // Default-Einstellungen pro Task (falls kein DB-Config)
 export const TASK_DEFAULTS: Record<AITaskType, { temperature: number; maxTokens: number }> = {
-  strategy_advisor: { temperature: 0.7, maxTokens: 2048 },
   concept_generator: { temperature: 0.7, maxTokens: 4096 },
   channel_adapter: { temperature: 0.7, maxTokens: 4096 },
   translator: { temperature: 0.3, maxTokens: 4096 },
   compliance_checker: { temperature: 0.3, maxTokens: 2048 },
-  draft_concept_generator: { temperature: 0.7, maxTokens: 4096 },
-  detail_concept_generator: { temperature: 0.5, maxTokens: 4096 },
   concept_feedback: { temperature: 0.5, maxTokens: 4096 },
   image_generation: { temperature: 0, maxTokens: 0 },
   image_variation: { temperature: 0, maxTokens: 0 },

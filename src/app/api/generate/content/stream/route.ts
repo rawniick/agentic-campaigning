@@ -3,7 +3,7 @@ import { getCampaignById, updateCampaignStatus } from "@/lib/db/queries/campaign
 import { getSelectedConcept } from "@/lib/db/queries/concepts";
 import { getTranslationsByCampaign } from "@/lib/db/queries/translations";
 import { createAsset } from "@/lib/db/queries/assets";
-import { createApproval, logAuditEvent } from "@/lib/db/queries/approvals";
+import { logAuditEvent } from "@/lib/db/queries/audit";
 import { getFormatsForChannel } from "@/lib/integrations/canva";
 import { routeImageTask } from "@/lib/ai/providers/router";
 import { initializeProviders } from "@/lib/ai/providers/init";
@@ -40,8 +40,8 @@ export async function POST(request: NextRequest) {
         await initializeProviders();
         const campaign = await getCampaignById(campaignId);
 
-        if (campaign.status !== "translations_approved") {
-          send("error", { message: `Status ${campaign.status} statt translations_approved` });
+        if (campaign.status !== "translations_ready" && campaign.status !== "concept_approved") {
+          send("error", { message: `Status ${campaign.status} ist nicht generierbar (erwartet: translations_ready oder concept_approved)` });
           controller.close();
           return;
         }
@@ -196,9 +196,8 @@ export async function POST(request: NextRequest) {
         // Status updaten
         if (completed > 0) {
           await updateCampaignStatus(campaignId, "assets_ready");
-          await createApproval(campaignId, "assets");
         } else {
-          await updateCampaignStatus(campaignId, "translations_approved");
+          await updateCampaignStatus(campaignId, "translations_ready");
         }
 
         await logAuditEvent(campaignId, "assets_generated_streaming", {

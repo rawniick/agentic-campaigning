@@ -1,69 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCampaignById, trackApiUsage, updateCampaignStatus } from "@/lib/db/queries/campaigns";
-import { getConceptsByCampaign, updateConcept } from "@/lib/db/queries/concepts";
+import { getSelectedConcept, updateConcept } from "@/lib/db/queries/concepts";
 import { createFeedbackMessage, getFeedbackMessages } from "@/lib/db/queries/feedback";
-import { logAuditEvent } from "@/lib/db/queries/approvals";
+import { logAuditEvent } from "@/lib/db/queries/audit";
 import { mapCampaignToPromoInput } from "@/lib/mappers/campaign-to-promo-input";
 import { buildPromptContext } from "@/lib/ai/brand-brain/context-builder";
 import { buildConceptFeedbackResponderPrompt } from "@/lib/ai/prompts/concept-feedback-responder";
 import { callClaude, estimateCostChf } from "@/lib/ai/claude";
 import { feedbackResponseSchema } from "@/lib/schemas/campaign";
 import { getAuthUser } from "@/lib/auth/get-user";
-import type { CampaignStatus } from "@/types/database";
 
-// POST /api/feedback — Feedback senden und Konzept verfeinern (v2 Flow)
+// POST /api/feedback — Feedback senden und Konzept iterativ verfeinern
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: "Nicht authentifiziert" }, { status: 401 });
 
-    const { campaignId, phase, message } = await request.json();
+    const { campaignId, message } = await request.json();
 
-    if (!campaignId || !phase || !message) {
+    if (!campaignId || !message) {
       return NextResponse.json(
-        { error: "campaignId, phase und message sind Pflicht" },
+        { error: "campaignId und message sind Pflicht" },
         { status: 400 }
       );
-    }
-
-    if (!["draft_concept", "detail_concept"].includes(phase)) {
-      return NextResponse.json({ error: "Phase muss draft_concept oder detail_concept sein" }, { status: 400 });
     }
 
     const campaign = await getCampaignById(campaignId);
 
-    if (campaign.flow_version !== 2) {
-      return NextResponse.json({ error: "Feedback nur fuer v2-Kampagnen" }, { status: 400 });
-    }
-
-    // Status-Validierung: Feedback nur in passenden Phasen erlaubt
-    const allowedStatuses: Record<string, CampaignStatus[]> = {
-      draft_concept: ["draft_concept_generated", "draft_concept_feedback"],
-      detail_concept: ["detail_concept_generated", "detail_concept_feedback"],
-    };
-    if (!allowedStatuses[phase]?.includes(campaign.status)) {
+    // Feedback nur in Konzept-Phase
+    if (!["concept_generated", "concept_feedback"].includes(campaign.status)) {
       return NextResponse.json(
-        { error: `Feedback fuer ${phase} nicht moeglich im Status ${campaign.status}` },
+        { error: `Feedback nicht moeglich im Status ${campaign.status}` },
         { status: 400 }
       );
     }
 
-    // Aktuelles Konzept laden
-    const concepts = await getConceptsByCampaign(campaignId);
-    const conceptType = phase === "draft_concept" ? "draft" : "detail";
-    const currentConcept = concepts
-      .filter((c) => c.concept_type === conceptType)
-      .sort((a, b) => b.iteration - a.iteration)[0];
-
+    const currentConcept = await getSelectedConcept(campaignId);
     if (!currentConcept) {
-      return NextResponse.json({ error: `Kein ${conceptType}-Konzept gefunden` }, { status: 400 });
+      return NextResponse.json({ error: "Kein Konzept gefunden" }, { status: 400 });
     }
 
     // User-Feedback speichern
-    await createFeedbackMessage(campaignId, phase, "user", message);
+    await createFeedbackMessage(campaignId, "concept", "user", message);
 
     // Feedback-Verlauf laden
-    const feedbackHistory = await getFeedbackMessages(campaignId, phase);
+    const feedbackHistory = await getFeedbackMessages(campaignId, "concept");
 
     // Konzept als JSON fuer Prompt
     const conceptData: Record<string, unknown> = {
@@ -74,13 +55,6 @@ export async function POST(request: NextRequest) {
       empfohlener_claim_index: currentConcept.recommended_claim_index ?? 0,
     };
 
-    if (phase === "draft_concept") {
-      conceptData.positionierung = currentConcept.positionierung;
-      conceptData.kreativ_richtung = currentConcept.kreativ_richtung;
-      conceptData.begruendung = currentConcept.begruendung;
-    }
-
-    // Prompt-Kontext bauen
     const promoInput = mapCampaignToPromoInput(campaign);
     const context = await buildPromptContext(promoInput, "de");
 
@@ -88,11 +62,9 @@ export async function POST(request: NextRequest) {
       context,
       campaign.brand,
       conceptData,
-      feedbackHistory,
-      phase
+      feedbackHistory
     );
 
-    // Claude aufrufen (balanced temperature)
     const response = await callClaude<unknown>({
       systemPrompt,
       userMessage: `Neuestes Feedback vom Marketing-Team:\n\n"${message}"`,
@@ -103,7 +75,6 @@ export async function POST(request: NextRequest) {
       brand: campaign.brand,
     });
 
-    // Zod-Validierung
     const parsed = feedbackResponseSchema.safeParse(response.data);
     if (!parsed.success) {
       return NextResponse.json(
@@ -127,32 +98,24 @@ export async function POST(request: NextRequest) {
       key_visual_direction: updatedConcept.key_visuals_direction,
       recommended_claim_index: updatedConcept.empfohlener_claim_index,
       iteration: newIteration,
-      ...(phase === "draft_concept" && "positionierung" in updatedConcept ? {
-        positionierung: updatedConcept.positionierung ?? currentConcept.positionierung,
-        kreativ_richtung: updatedConcept.kreativ_richtung ?? currentConcept.kreativ_richtung,
-        begruendung: updatedConcept.begruendung ?? currentConcept.begruendung,
-      } : {}),
     });
 
     // Assistant-Antwort speichern
     await createFeedbackMessage(
       campaignId,
-      phase,
+      "concept",
       "assistant",
       feedbackResponse.antwort,
       updatedConcept as unknown as Record<string, unknown>
     );
 
-    // Status auf Feedback setzen
-    const feedbackStatus: CampaignStatus =
-      phase === "draft_concept" ? "draft_concept_feedback" : "detail_concept_feedback";
-    await updateCampaignStatus(campaignId, feedbackStatus);
+    // Status auf concept_feedback (zeigt: User hat iteriert)
+    await updateCampaignStatus(campaignId, "concept_feedback");
 
     // Kosten tracken
     const costChf = estimateCostChf(response.tokensUsed.input, response.tokensUsed.output);
     await trackApiUsage(campaignId, response.tokensUsed.total, costChf);
     await logAuditEvent(campaignId, "concept_feedback_processed", {
-      phase,
       iteration: newIteration,
       changes: feedbackResponse.aenderungen,
       tokens_used: response.tokensUsed.total,

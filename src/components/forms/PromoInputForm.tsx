@@ -171,8 +171,7 @@ export function PromoInputForm() {
       }
 
       toast.success("Kampagne erstellt");
-      // v2 Flow: Direkt zur Eingabe-Pruefung
-      router.push(`/campaigns/${result.id}/review`);
+      router.push(`/campaigns/${result.id}`);
     } catch {
       toast.error("Netzwerkfehler beim Erstellen der Kampagne");
     } finally {

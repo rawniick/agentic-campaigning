@@ -1,10 +1,23 @@
-// Canva OAuth2 mit PKCE — Token-Management pro Brand
+// Canva OAuth2 mit PKCE (SHA-256) — Token-Management pro Brand
 
 import { getServerClient } from "@/lib/db/supabase";
+import { randomBytes, createHash } from "crypto";
 import type { CanvaOAuthToken } from "@/types/database";
 
 const CANVA_AUTH_URL = "https://www.canva.com/api/oauth/authorize";
 const CANVA_TOKEN_URL = "https://www.canva.com/api/oauth/token";
+
+// Scopes gemaess Canva Connect API Dokumentation
+// Scopes muessen in der Canva Integration unter "Scopes" aktiviert sein!
+// brandtemplate:* braucht Canva for Teams — mit Pro nicht verfuegbar
+const CANVA_SCOPES = [
+  "design:content:read",
+  "design:content:write",
+  "design:meta:read",
+  "asset:read",
+  "asset:write",
+  "profile:read",
+].join(" ");
 
 export interface CanvaOAuthConfig {
   clientId: string;
@@ -21,20 +34,41 @@ export function buildCanvaOAuthConfig(): CanvaOAuthConfig | null {
   return { clientId, clientSecret, redirectUri };
 }
 
-// Authorization URL generieren
-export function getAuthorizationUrl(config: CanvaOAuthConfig, brand: string, state: string): string {
+// PKCE: Code Verifier generieren (43-128 Zeichen, URL-safe)
+export function generateCodeVerifier(): string {
+  return randomBytes(64).toString("base64url").slice(0, 96);
+}
+
+// PKCE: Code Challenge aus Verifier berechnen (SHA-256, base64url)
+export function generateCodeChallenge(verifier: string): string {
+  return createHash("sha256").update(verifier).digest("base64url");
+}
+
+// Authorization URL generieren (mit PKCE)
+export function getAuthorizationUrl(
+  config: CanvaOAuthConfig,
+  brand: string,
+  state: string,
+  codeChallenge: string
+): string {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
-    scope: "design:content:read design:content:write asset:read asset:write brand_template:content:read brand_template:meta:read",
-    state: JSON.stringify({ brand, state }),
+    scope: CANVA_SCOPES,
+    state: JSON.stringify({ brand, nonce: state }),
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
   });
   return `${CANVA_AUTH_URL}?${params.toString()}`;
 }
 
-// Authorization Code → Access Token tauschen
-export async function exchangeCode(config: CanvaOAuthConfig, code: string): Promise<{
+// Authorization Code → Access Token tauschen (mit PKCE code_verifier)
+export async function exchangeCode(
+  config: CanvaOAuthConfig,
+  code: string,
+  codeVerifier: string
+): Promise<{
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
@@ -49,6 +83,7 @@ export async function exchangeCode(config: CanvaOAuthConfig, code: string): Prom
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
+      code_verifier: codeVerifier,
       redirect_uri: config.redirectUri,
     }),
   });

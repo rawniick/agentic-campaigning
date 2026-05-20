@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { promoInputSchema } from "@/lib/schemas/promo-input";
 import { mapPromoInputToCampaign } from "@/lib/mappers/promo-to-campaign";
 import { createCampaign, getCampaigns } from "@/lib/db/queries/campaigns";
-import { logAuditEvent } from "@/lib/db/queries/approvals";
+import { logAuditEvent } from "@/lib/db/queries/audit";
 import { getAuthUser } from "@/lib/auth/get-user";
 
 // POST /api/campaigns - Kampagne aus PromoInput erstellen

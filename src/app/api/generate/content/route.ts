@@ -3,7 +3,7 @@ import { getCampaignById, updateCampaignStatus } from "@/lib/db/queries/campaign
 import { getSelectedConcept } from "@/lib/db/queries/concepts";
 import { getTranslationsByCampaign } from "@/lib/db/queries/translations";
 import { createAsset } from "@/lib/db/queries/assets";
-import { createApproval, logAuditEvent } from "@/lib/db/queries/approvals";
+import { logAuditEvent } from "@/lib/db/queries/audit";
 import {
   buildCanvaConfig,
   listTemplates,
@@ -15,7 +15,7 @@ import { initializeProviders } from "@/lib/ai/providers/init";
 import { uploadFromBase64, uploadFromUrl } from "@/lib/integrations/storage";
 import { compositeAsset } from "@/lib/compositing/engine";
 import { uploadBuffer } from "@/lib/integrations/storage";
-import { isCanvaAvailable, createDesignFromTemplate, exportDesign } from "@/lib/integrations/canva-api";
+// canva-api Import entfernt — wird via Facade (canva.ts) aufgerufen
 import type { ChannelAdaptations, Campaign, Concept } from "@/types/database";
 import { getAuthUser } from "@/lib/auth/get-user";
 
@@ -74,9 +74,9 @@ export async function POST(request: NextRequest) {
 
     // 1. Campaign laden und Status pruefen
     const campaign = await getCampaignById(campaignId);
-    if (campaign.status !== "translations_approved") {
+    if (campaign.status !== "translations_ready" && campaign.status !== "concept_approved") {
       return NextResponse.json(
-        { error: `Ungueltiger Status: ${campaign.status}. Erwartet: translations_approved` },
+        { error: `Ungueltiger Status: ${campaign.status}. Erwartet: translations_ready oder concept_approved` },
         { status: 400 }
       );
     }
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
     for (const channel of campaign.channels) {
       const formats = getFormatsForChannel(channel);
       const templates = requestedMode !== "ai_image" && requestedMode !== "ai_video"
-        ? await listTemplates(canvaConfig, channel)
+        ? await listTemplates(canvaConfig, channel, campaign.brand)
         : [];
 
       for (const { format } of formats) {
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
             if (effectiveMode === "template" && template) {
               // Canva Template-Filling (bestehende Logik)
               const templateContent = buildTemplateContent(content.adaptations, channel, content.claims, content.heroMessage);
-              const design = await fillTemplate(canvaConfig, template.id, templateContent);
+              const design = await fillTemplate(canvaConfig, template.id, templateContent, campaign.brand);
               canvaDesignId = design.id;
               storagePath = design.exportUrl;
               thumbnailPath = design.thumbnailUrl;
@@ -339,12 +339,11 @@ export async function POST(request: NextRequest) {
     // 7. Status: nur assets_ready wenn mindestens 1 Asset erfolgreich oder processing
     const successCount = createdAssets.filter((a) => a.status === "completed" || a.status === "processing").length;
     if (successCount > 0) {
+      // Gate 2 (Asset-Approve) wartet via campaign.status
       await updateCampaignStatus(campaignId, "assets_ready");
-      // 8. Approval fuer Stage 3 (assets) erstellen
-      await createApproval(campaignId, "assets");
     } else {
-      // Alle fehlgeschlagen: zurueck zu translations_approved
-      await updateCampaignStatus(campaignId, "translations_approved");
+      // Alle fehlgeschlagen: zurueck
+      await updateCampaignStatus(campaignId, "translations_ready");
     }
 
     // 9. Audit-Log

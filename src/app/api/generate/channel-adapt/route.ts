@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCampaignById, trackApiUsage } from "@/lib/db/queries/campaigns";
 import { getSelectedConcept, updateConcept } from "@/lib/db/queries/concepts";
-import { logAuditEvent } from "@/lib/db/queries/approvals";
+import { logAuditEvent } from "@/lib/db/queries/audit";
 import { mapCampaignToPromoInput } from "@/lib/mappers/campaign-to-promo-input";
 import { buildPromptContext } from "@/lib/ai/brand-brain/context-builder";
 import { buildChannelAdapterPrompt } from "@/lib/ai/prompts/channel-adapter";

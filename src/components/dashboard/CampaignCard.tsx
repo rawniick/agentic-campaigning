@@ -2,15 +2,13 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "./StatusBadge";
 import type { Campaign } from "@/types/database";
-import { Calendar, Tag, Globe, Target, HardDrive } from "lucide-react";
-import type { DistributionPlatform } from "@/types/database";
+import { Calendar, Tag, Globe } from "lucide-react";
 
 interface CampaignCardProps {
   campaign: Campaign;
-  distributedPlatforms?: DistributionPlatform[];
 }
 
-export function CampaignCard({ campaign, distributedPlatforms }: CampaignCardProps) {
+export function CampaignCard({ campaign }: CampaignCardProps) {
   return (
     <Link href={`/campaigns/${campaign.id}`}>
       <Card className="transition-shadow hover:shadow-md">
@@ -56,20 +54,6 @@ export function CampaignCard({ campaign, distributedPlatforms }: CampaignCardPro
               </span>
             ))}
           </div>
-          {["published", "archived"].includes(campaign.status) && distributedPlatforms && distributedPlatforms.length > 0 && (
-            <div className="flex items-center gap-1.5 pt-1">
-              <span className="text-xs text-muted-foreground">Exportiert:</span>
-              {distributedPlatforms.includes("meta") && (
-                <span className="text-blue-500" role="img" aria-label="Meta Ads"><Globe className="h-3 w-3" /></span>
-              )}
-              {distributedPlatforms.includes("google_ads") && (
-                <span className="text-green-500" role="img" aria-label="Google Ads"><Target className="h-3 w-3" /></span>
-              )}
-              {distributedPlatforms.includes("google_drive") && (
-                <span className="text-orange-500" role="img" aria-label="Google Drive"><HardDrive className="h-3 w-3" /></span>
-              )}
-            </div>
-          )}
         </CardContent>
       </Card>
     </Link>

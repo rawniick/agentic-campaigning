@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCampaignById, trackApiUsage, updateCampaignStatus } from "@/lib/db/queries/campaigns";
 import { createConcept } from "@/lib/db/queries/concepts";
-import { createApproval, logAuditEvent } from "@/lib/db/queries/approvals";
+import { logAuditEvent } from "@/lib/db/queries/audit";
 import { mapCampaignToPromoInput } from "@/lib/mappers/campaign-to-promo-input";
 import { buildPromptContext } from "@/lib/ai/brand-brain/context-builder";
 import { buildConceptGeneratorPrompt } from "@/lib/ai/prompts/concept-generator";
@@ -26,15 +26,6 @@ export async function POST(request: NextRequest) {
 
     // 1. Campaign laden und PromoInput rekonstruieren
     const campaign = await getCampaignById(campaignId);
-
-    // v2-Kampagnen muessen draft-concept / detail-concept nutzen
-    if (campaign.flow_version === 2) {
-      return NextResponse.json(
-        { error: "v2-Kampagnen nutzen /api/generate/draft-concept und /api/generate/detail-concept" },
-        { status: 400 }
-      );
-    }
-
     const promoInput = mapCampaignToPromoInput(campaign);
 
     // Strategie-Richtung in Claim-Direction uebernehmen
@@ -125,18 +116,12 @@ export async function POST(request: NextRequest) {
       is_selected: true,
       prompt_version: concept.metadata.prompt_version,
       tokens_used: response.tokensUsed.total,
-      // v2-Felder (Defaults fuer v1-Kampagnen)
-      concept_type: "legacy",
       iteration: 1,
       parent_concept_id: null,
-      positionierung: null,
-      kreativ_richtung: null,
-      begruendung: null,
     });
 
-    // 7. Status updaten und Approval erstellen
+    // 7. Status updaten — Gate 1 (Konzept-Approve) wartet via campaign.status
     await updateCampaignStatus(campaignId, "concept_generated");
-    await createApproval(campaignId, "concept");
 
     // 8. Kosten tracken + Audit
     const costChf = estimateCostChf(response.tokensUsed.input, response.tokensUsed.output);

@@ -92,6 +92,32 @@ export function buildAirtableConfig(): AirtableConfig | null {
 const AIRTABLE_API_BASE = "https://api.airtable.com/v0";
 const AIRTABLE_META_API = "https://api.airtable.com/v0/meta";
 
+// --- Token Verification ---
+
+/**
+ * Prueft ob ein Token grundsaetzlich gueltig ist, auch ohne Meta-API Scope.
+ * Versucht einen Data-API Zugriff auf die Base — 404 = Token OK aber Table fehlt,
+ * 401/403 = Token wirklich ungueltig.
+ */
+export async function verifyTokenViaDataApi(
+  token: string,
+  baseId: string
+): Promise<boolean> {
+  const response = await fetch(`${AIRTABLE_API_BASE}/${baseId}/__ping__`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  // 401/403 = Token ist wirklich ungueltig
+  if (response.status === 401 || response.status === 403) {
+    return false;
+  }
+
+  // Alles andere (404, 422, etc.) = Token funktioniert, nur Table existiert nicht
+  return true;
+}
+
 // --- REST Client ---
 
 /**

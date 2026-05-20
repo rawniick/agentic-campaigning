@@ -2,139 +2,131 @@
 
 ## Projekt
 
-AI-gesteuerte, brand-agnostische Marketing-Engine. Automatisiert: Input, Konzept, Claims, Uebersetzungen (DE/FR/IT/EN), visuelle Assets via Canva, Upload in Ad-Plattformen. Multi-Brand-faehig – Brand-Daten werden dynamisch aus dem Brand Brain geladen.
+AI-gestuetztes internes Marketing-Tool. Ein Marketer wirft einen Promo-Brief rein und
+bekommt ein Konzept (DE), Uebersetzungen (FR/IT/EN) und visuelle Assets (Canva oder
+Compositing-Fallback) zurueck. Output: ZIP zum manuellen Hochladen in Meta / Google
+Ads / CRM. Brand-Brain-getrieben (Glossar, Tone-of-Voice, Compliance-Regeln).
+
+**Branch X:** Internes 1-User-Tool. Kein RBAC, keine Auto-Distribution, kein n8n,
+keine Multi-Brand-UI, kein Cloning, keine Metrics-Sync.
+
+## V3 Flow (Manueller Trigger pro Stage, 2 Approval-Gates)
+
+```
+draft / input_complete
+    -> User klickt "Konzept generieren"
+concept_generated  ◄ Gate 1
+    -> Konzept anzeigen + FeedbackChat fuer Iteration
+    -> User klickt "Konzept freigeben" oder iteriert via Chat
+concept_approved
+    -> User klickt "Uebersetzen"
+translating -> translations_ready
+    -> User klickt "Assets generieren"
+rendering_assets -> assets_ready  ◄ Gate 2
+    -> User reviewed Assets, regeneriert einzelne wenn noetig
+    -> User klickt "Assets freigeben"
+assets_approved
+    -> User klickt "ZIP herunterladen" -> manuelles Upload extern
+```
 
 ## Tech Stack
 
-- Frontend: Next.js 14 (App Router) + React + Tailwind CSS + shadcn/ui
+- Frontend: Next.js 16 (App Router) + React 19 + Tailwind CSS 4 + shadcn/ui
 - Backend: Next.js API Routes + Server Actions
-- AI: Claude API (claude-sonnet-4-20250514)
-- Orchestrierung: n8n (Docker) fuer async Workflows
-- Datenbank: Supabase (Postgres + Auth + Storage + Realtime)
-- Integrations: Canva Connect API, Meta Marketing API, Google Ads API, Google Drive API
+- AI: Anthropic Claude (Sonnet) via `src/lib/ai/claude.ts`
+- AI Providers: NanoBanana, DALL-E (Bilder), Sora/Veo3 (Video, Stretch)
+- Datenbank: Supabase (Postgres + Auth + Storage)
+- Integrations: Canva Connect API, Frontify, Google Drive, Airtable
 - Language: TypeScript strict
 
 ## Projektstruktur
 
 ```
 src/
-  app/                       # Next.js App Router
-    layout.tsx               # Root Layout mit Sidebar
-    page.tsx                 # Dashboard Home
+  app/
+    layout.tsx              # Root Layout mit Sidebar
+    page.tsx                # Dashboard
     campaigns/
-      page.tsx               # Kampagnen-Uebersicht
-      new/page.tsx           # Promo-Input Formular
+      page.tsx              # Kampagnen-Liste
+      new/page.tsx          # Promo-Input Formular
       [id]/
-        page.tsx             # Detail + Approval
-        briefing/page.tsx    # Generiertes Briefing
-        content/page.tsx     # Assets
-        export/page.tsx      # Distribution
+        page.tsx            # Single-Page Detail (alle V3-Sektionen)
+        content/page.tsx    # Detail-Asset-Ansicht (optional)
+    settings/
+      brand-brain/page.tsx  # Brand Brain Status
+      canva/page.tsx        # Canva OAuth + Template-Mapping
+    actions/
+      approve.ts            # approveStage / rejectStage Server Actions
     api/
+      campaigns/            # CRUD
       generate/
-        concept/route.ts     # Konzept-Generierung
-        translate/route.ts   # Uebersetzung
-        content/route.ts     # Content-Generierung
-      campaigns/route.ts     # CRUD
-      approve/route.ts       # Approval-Actions
-      export/route.ts        # Upload Meta/Google
+        concept/            # Konzept-Generierung
+        translate/          # Uebersetzung
+        content/            # Asset-Generierung
+        hero-images/        # 3 Hero-Kandidaten
+        channel-adapt/      # Kanal-Adaptionen (optional)
+      feedback/             # Konzept-Iteration via Chat
+      assets/[id]/
+        select/             # Hero-Kandidat auswaehlen
+        regenerate/         # Einzelnes Asset neu generieren
+        poll/               # Video-Status Polling
+      export/
+        download/           # ZIP-Download (Briefing + Assets)
+      integrations/canva/   # OAuth, Templates, Mappings, Status
+      brand-brain/          # Frontify, Drive, Airtable
   components/
-    ui/                      # shadcn/ui
-    dashboard/               # Sidebar, CampaignCard, StatusBadge
-    forms/                   # PromoInputForm, PricingInput, ChannelSelector
-    briefing/                # ConceptCard, ChannelPreview, TranslationView, ABVariantToggle
-    approval/                # ApprovalFlow, ApprovalButton, FeedbackInput
-    assets/                  # AssetGrid, AssetPreview, FormatBadge
+    ui/                     # shadcn/ui
+    dashboard/              # Sidebar, CampaignCard, GenerateActions, StatusBadge
+    forms/                  # PromoInputForm
+    briefing/               # ConceptCard, ChannelPreview, TranslationView
+    feedback/               # FeedbackChat (Konzept-Iteration)
+    assets/                 # AssetGrid, HeroImagePicker, GenerationProgress
+    export/                 # ExportPanel (ZIP-Download)
   lib/
     ai/
-      claude.ts              # API Client + Retry + Validation Pipeline
-      prompts/               # Alle Prompts als eigene Dateien
-        strategy-advisor.ts  # 2 strategische Richtungen vorschlagen
-        concept-generator.ts # Leitidee, Claims, Hero Message
-        channel-adapter.ts   # Kanal-spezifische Adaptionen
-        translator.ts        # DE->FR/IT/EN mit Glossar
-        compliance-checker.ts
-      brand-brain/
-        loader.ts            # Brand Brain aus Google Drive / lokal laden
-        context-builder.ts   # Modularen Kontext zusammenbauen
-      validation/
-        price-validator.ts   # Preise MUESSEN exakt Input matchen
-        char-limit.ts        # SEA 30/90, CRM 50 etc.
-        compliance.ts
+      claude.ts             # API Client + Retry
+      providers/            # AI Provider Router (Bild/Video)
+      prompts/              # concept-generator, translator, channel-adapter,
+                            # compliance-checker, concept-feedback-responder
+      brand-brain/          # loader, context-builder, frontify-loader
+      validation/           # price-validator, char-limit, compliance
     db/
       supabase.ts
-      queries/campaigns.ts
-      queries/assets.ts
-      queries/approvals.ts
+      queries/              # campaigns, concepts, translations, assets,
+                            # feedback, audit, canva-mappings
     integrations/
-      canva.ts               # Template-Filling via Canva Connect API
-      meta-ads.ts            # Auto-Upload nach Approval
-      google-ads.ts
-      google-drive.ts
-    schemas/
-      promo-input.ts         # Zod Schema
-      campaign.ts
-brand-brain/                 # Lokaler Fallback fuer Dev
-  tone-of-voice.md
-  glossar-de.json
-  glossar-fr.json
-  glossar-it.json
-  glossar-en.json
-  ci-rules.json
-  golden-examples.json
-n8n-workflows/               # Import-JSONs
-supabase/migrations/
+      canva.ts              # Template-Filling (Mapping-getrieben)
+      canva-api.ts          # Canva Connect REST
+      canva-oauth.ts        # OAuth2 PKCE
+      storage.ts            # Supabase Storage (campaign-assets bucket)
+      google-drive.ts       # Brand Brain (read-only)
+      airtable.ts           # Brand Brain Datasource
+      frontify.ts           # CI/Tone-of-Voice
+    compositing/            # sharp-basierter Fallback wenn Canva fehlt
+    schemas/                # Zod: promo-input, campaign
+    mappers/                # promo-to-campaign, campaign-to-promo-input
+brand-brain/                # Lokaler Fallback fuer Dev
+supabase/migrations/        # 001-014
 ```
-
-## Features
-
-### F0: Brand Brain
-- Google Drive als Source of Truth, lokal als Fallback
-- Modular: Shared (Compliance, Pricing) + Brand (Tone, Glossar) + Campaign
-- 4 Sprachen: DE/FR/IT/EN
-- Golden Examples in Prompts einarbeiten
-- Brand-agnostisch (Multi-Brand vorbereitet)
-
-### F1: Konzept und Briefing
-- Web-Formular (React) fuer Promo-Input
-- Mix-Modus: Engine schlaegt 2 Strategie-Richtungen vor, Marketing waehlt
-- A/B-Test: 2 Richtungen mit je eigenem Claim-Set
-- Online-Kanaele: Social, CRM, Website, SEA
-- Uebersetzung DE -> FR/IT/EN mit Glossar-Enforcement
-- Preis-Validierung nach JEDER Generierung
-
-### F2: Content / Media Engine
-- Canva Connect API fuer Template-Rendering
-- Nutzt bestehende Canva Brand Kit Templates
-- Generiert KEINE Texte (uebernimmt aus F1)
-- Formate: Social Feed, Stories, Banner, Newsletter, Hero
-- Varianten-Matrix: 1 Template x 4 Sprachen x N Formate
-- AI-Video (Sora/Runway) = Stretch Goal
-
-### F3: Campaign Asset Package
-- Dashboard = Single Pane of Glass
-- 3-Stufen-Approval: DE-Konzept, Uebersetzungen, Visual-Set
-- Auto-Upload: Meta Business Suite + Google Ads
-- Google Drive Archiv
 
 ## Coding Conventions
 
-- TypeScript strict, keine any
+- TypeScript strict, keine `any`
 - Zod fuer alle Validierungen
-- Server Components Default, Client nur mit 'use client'
+- Server Components Default, Client nur mit `'use client'`
 - API Routes fuer Webhooks, Server Actions fuer Mutationen
 - Tailwind + shadcn/ui
 - Deutsche Kommentare fuer Business-Logik
-- try/catch mit { error: string, details?: unknown }
-- async/await ueberall
+- try/catch mit `{ error: string, details?: unknown }`
 
 ## Prompt Engineering
 
-- Jeder Prompt eigene Datei in src/lib/ai/prompts/
-- Template Literals mit Variablen: ${brandName}, ${glossar}
-- Alle Calls ueber src/lib/ai/claude.ts
+- Jeder Prompt eigene Datei in `src/lib/ai/prompts/`
+- Template Literals mit Variablen aus Brand Brain Context
+- Alle Calls ueber `src/lib/ai/claude.ts`
 - JSON Output erzwingen via System-Prompt
 - Post-Call: Preis-Validierung -> Zeichenlimit -> Compliance
-- Temperature: 0.3 (Fakten), 0.7 (Kreativ)
+- Temperature: 0.3 (Fakten), 0.7 (Kreativ), 0.5 (Iteration)
 
 ## Business-Regeln (STRICT)
 
@@ -146,32 +138,20 @@ supabase/migrations/
 - "5G im Swisscom Netz" = Pflicht bei 5G-Produkten
 - Kein Claim ohne Beleg im Input
 
-## Build-Reihenfolge
+## Was NICHT mehr im Scope ist (V3 Branch X)
 
-Phase 1 - Foundation:
-1. Next.js + Tailwind + shadcn/ui Setup
-2. Supabase Schema (campaigns, assets, approvals, translations)
-3. Brand Brain Loader
-4. Claude API Client mit Retry + Validation
-5. Docker-Compose (n8n)
+- ~~RBAC (4 Rollen, Profile-Tabelle)~~ - 1 User
+- ~~In-App Notifications~~ - 1 User
+- ~~Auto-Upload Meta / Google Ads~~ - User laedt manuell hoch
+- ~~Campaign Metrics Sync~~ - kommt zurueck wenn Distribute zurueckkommt
+- ~~Campaign Cloning / Templates~~ - YAGNI
+- ~~n8n Workflows~~ - Manuelle Trigger reichen
+- ~~v2 Grobkonzept + Detailkonzept Trennung~~ - 1 Konzept-Stage mit Chat-Iteration
+- ~~Strategie-Vorschlag mit 2 Richtungen~~ - claim_direction aus Brief reicht
+- ~~Eingabe-Review-Page~~ - Submit ist Bestaetigung
+- ~~AI-Video~~ - defer
 
-Phase 2 - Konzept Engine:
-6. Promo-Input Zod Schema
-7. Web-Formular
-8. Strategy Advisor (2 Richtungen)
-9. Concept Generator (Claims + Kanaladaptionen)
-10. Translator (4 Sprachen)
-11. Preis-Validierung + Compliance
+## Deployment
 
-Phase 3 - Content Engine:
-12. Canva Connect API
-13. Template-Discovery + Filling
-14. Format-Adaptionen
-15. Asset Storage
-
-Phase 4 - Orchestrierung:
-16. Dashboard + Kampagnen-Uebersicht
-17. Approval-Flow (3 Stufen)
-18. Meta + Google Ads Upload
-19. Google Drive Export
-20. n8n Workflows
+- Hosting: Vercel (Phase 1), evtl. self-hosted spaeter
+- Crons (zukuenftig): Vercel Cron oder Supabase pg_cron fuer Brand-Brain-Sync

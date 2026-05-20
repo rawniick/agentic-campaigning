@@ -1,13 +1,10 @@
 import { notFound } from "next/navigation";
 import { getCampaignById } from "@/lib/db/queries/campaigns";
 import { getAssetsByCampaign } from "@/lib/db/queries/assets";
-import { getApprovalsByCampaign } from "@/lib/db/queries/approvals";
 import { AssetGrid } from "@/components/assets/AssetGrid";
 import { HeroImagePicker } from "@/components/assets/HeroImagePicker";
 import { GenerationProgress } from "@/components/assets/GenerationProgress";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import type { Campaign } from "@/types/database";
 
@@ -25,25 +22,17 @@ export default async function ContentPage({ params }: ContentPageProps) {
     notFound();
   }
 
-  const [assets, approvals] = await Promise.all([
-    getAssetsByCampaign(id).catch(() => []),
-    getApprovalsByCampaign(id).catch(() => []),
-  ]);
+  const assets = await getAssetsByCampaign(id).catch(() => []);
 
-  // Asset-Approval Status
-  const assetApproval = approvals.find((a) => a.stage === "assets");
-
-  // Hero-Bild Kandidaten (aus candidate_group_id)
+  // Hero-Kandidaten (candidate_group_id) von regulaeren Assets trennen
   const heroCandidates = assets.filter((a) => a.candidate_group_id !== null);
   const regularAssets = assets.filter((a) => a.candidate_group_id === null);
 
-  // Statistiken (nur regulaere Assets)
   const completedAssets = regularAssets.filter((a) => a.status === "completed").length;
   const processingAssets = regularAssets.filter((a) => a.status === "processing").length;
   const failedAssets = regularAssets.filter((a) => a.status === "failed").length;
 
-  // Status pruefen: Kann Asset-Generierung gestartet werden?
-  const canGenerate = campaign.status === "translations_approved";
+  const canGenerate = campaign.status === "translations_ready";
   const hasAssets = regularAssets.length > 0;
 
   return (
@@ -60,23 +49,6 @@ export default async function ContentPage({ params }: ContentPageProps) {
           <h1 className="text-3xl font-bold">Content Assets</h1>
           <div className="mt-2 flex items-center gap-3">
             <StatusBadge status={campaign.status} />
-            {assetApproval && (
-              <Badge
-                variant={
-                  assetApproval.status === "approved"
-                    ? "default"
-                    : assetApproval.status === "rejected"
-                      ? "destructive"
-                      : "secondary"
-                }
-                className="gap-1"
-              >
-                {assetApproval.status === "approved" && <CheckCircle className="h-3 w-3" />}
-                {assetApproval.status === "pending" && <Clock className="h-3 w-3" />}
-                {assetApproval.status === "rejected" && <AlertCircle className="h-3 w-3" />}
-                Asset-Approval: {assetApproval.status}
-              </Badge>
-            )}
           </div>
         </div>
         <div className="text-right text-sm text-muted-foreground space-y-1">
@@ -91,14 +63,14 @@ export default async function ContentPage({ params }: ContentPageProps) {
         </div>
       </div>
 
-      {/* Step 1: Hero-Bild Auswahl (P0.3) */}
+      {/* Step 1: Hero-Bild Auswahl */}
       <HeroImagePicker
         campaignId={id}
         candidates={heroCandidates}
         selectedAssetId={campaign.hero_image_asset_id}
       />
 
-      {/* Step 2: Asset-Generierung mit Streaming (P1.2) */}
+      {/* Step 2: Asset-Generierung mit Streaming */}
       {canGenerate && !hasAssets && (
         <GenerationProgress campaignId={id} />
       )}

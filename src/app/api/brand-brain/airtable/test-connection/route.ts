@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth/get-user";
 import {
   listBases,
   listTables,
+  verifyTokenViaDataApi,
   AirtableError,
   type AirtableConfig,
 } from "@/lib/integrations/airtable";
@@ -42,21 +43,32 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Bases abrufen (benoetigt schema.bases:read Scope)
     let bases: Array<{ id: string; name: string; permissionLevel: string }> = [];
+    let hasMetaApiAccess = true;
     try {
       bases = await listBases(token);
     } catch (err) {
-      // Meta API Zugriff nicht vorhanden — kein Fehler, nur kein Discovery
       if (err instanceof AirtableError && err.code === "UNAUTHENTICATED") {
-        throw err; // Token ungueltig
+        // Meta API 401/403 — Token koennte trotzdem fuer Data API gueltig sein
+        // Fallback: Data API Ping um Token zu verifizieren
+        if (baseId) {
+          const tokenValid = await verifyTokenViaDataApi(token, baseId);
+          if (!tokenValid) {
+            throw err; // Token wirklich ungueltig
+          }
+          // Token OK, nur kein Meta API Scope
+          hasMetaApiAccess = false;
+        } else {
+          throw err; // Ohne baseId koennen wir nicht verifizieren
+        }
       }
-      // Andere Fehler (z.B. kein Meta API Scope) — wir machen weiter mit dem baseId
+      // Andere Fehler — wir machen weiter mit dem baseId
     }
 
     // 2. Tables der ausgewaehlten Base laden
     let tables: Array<{ id: string; name: string; fields: Array<{ name: string; type: string }> }> = [];
     const targetBaseId = baseId || (bases.length > 0 ? bases[0].id : "");
 
-    if (targetBaseId) {
+    if (targetBaseId && hasMetaApiAccess) {
       try {
         tables = (await listTables(token, targetBaseId)).map((t) => ({
           id: t.id,
@@ -65,7 +77,12 @@ export async function POST(request: NextRequest) {
         }));
       } catch (err) {
         if (err instanceof AirtableError && err.code === "UNAUTHENTICATED") {
-          throw err;
+          // Gleicher Fallback: Data API Ping
+          const tokenValid = await verifyTokenViaDataApi(token, targetBaseId);
+          if (!tokenValid) {
+            throw err;
+          }
+          hasMetaApiAccess = false;
         }
         // Meta API kein Zugriff — trotzdem Erfolg melden
       }
@@ -99,6 +116,11 @@ export async function POST(request: NextRequest) {
         fields: t.fields.slice(0, 10), // Nur erste 10 Felder
       })),
       suggestedMappings,
+      hasMetaApiAccess,
+      ...(!hasMetaApiAccess && {
+        warning: "Token hat keinen schema.bases:read Scope — Table-Discovery nicht verfuegbar. " +
+          "Daten-Zugriff funktioniert, aber Table-Namen muessen manuell eingegeben werden.",
+      }),
     });
   } catch (err) {
     if (err instanceof AirtableError) {

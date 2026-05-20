@@ -76,7 +76,7 @@ export function mapCampaignToPromoInput(campaign: Campaign): PromoInput {
       disclaimer_text: campaign.disclaimer_text ?? undefined,
       five_g_badge: campaign.five_g_badge,
       swisscom_netz_hinweis: campaign.swisscom_netz_hinweis,
-      legal_review_required: campaign.legal_review_required,
+      legal_review_required: false,
       additional_legal: [],
     },
 

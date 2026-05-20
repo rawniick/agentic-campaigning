@@ -3,11 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CampaignCard } from "@/components/dashboard/CampaignCard";
 import { getCampaigns } from "@/lib/db/queries/campaigns";
-import { PlusCircle, Megaphone, CheckCircle, Clock, Send } from "lucide-react";
+import { PlusCircle, Megaphone, CheckCircle, Clock } from "lucide-react";
 
 export default async function DashboardPage() {
   let campaigns: Awaited<ReturnType<typeof getCampaigns>> = [];
-  let stats = { total: 0, active: 0, approved: 0, distributed: 0, draft: 0 };
+  let stats = { total: 0, active: 0, approved: 0, draft: 0 };
 
   try {
     campaigns = await getCampaigns({ limit: 5 });
@@ -15,12 +15,9 @@ export default async function DashboardPage() {
     stats = {
       total: allCampaigns.length,
       active: allCampaigns.filter((c) =>
-        !["draft", "archived", "published"].includes(c.status)
+        !["draft", "assets_approved"].includes(c.status)
       ).length,
-      approved: allCampaigns.filter((c) => c.status === "published").length,
-      distributed: allCampaigns.filter((c) =>
-        ["published", "archived"].includes(c.status)
-      ).length,
+      approved: allCampaigns.filter((c) => c.status === "assets_approved").length,
       draft: allCampaigns.filter((c) => c.status === "draft").length,
     };
   } catch {
@@ -46,7 +43,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Gesamt</CardTitle>
@@ -67,20 +64,11 @@ export default async function DashboardPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Publiziert</CardTitle>
+            <CardTitle className="text-sm font-medium">Fertig</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.approved}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Verteilt</CardTitle>
-            <Send className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.distributed}</div>
           </CardContent>
         </Card>
         <Card>

@@ -15,20 +15,15 @@ import type { CampaignStatus } from "@/types/database";
 const STATUS_OPTIONS: { value: CampaignStatus | "all"; label: string }[] = [
   { value: "all", label: "Alle Status" },
   { value: "draft", label: "Entwurf" },
-  { value: "input_complete", label: "Input komplett" },
-  { value: "strategy_proposed", label: "Strategie vorgeschlagen" },
-  { value: "strategy_selected", label: "Strategie gewaehlt" },
+  { value: "input_complete", label: "Eingabe komplett" },
   { value: "concept_generated", label: "Konzept generiert" },
-  { value: "concept_approved", label: "Konzept genehmigt" },
+  { value: "concept_feedback", label: "Konzept Feedback" },
+  { value: "concept_approved", label: "Konzept freigegeben" },
   { value: "translating", label: "Uebersetzung laeuft" },
   { value: "translations_ready", label: "Uebersetzungen fertig" },
-  { value: "translations_approved", label: "Uebersetzungen genehmigt" },
   { value: "rendering_assets", label: "Assets rendern" },
   { value: "assets_ready", label: "Assets fertig" },
-  { value: "assets_approved", label: "Assets genehmigt" },
-  { value: "distributing", label: "Wird verteilt" },
-  { value: "published", label: "Publiziert" },
-  { value: "archived", label: "Archiviert" },
+  { value: "assets_approved", label: "Assets freigegeben" },
 ];
 
 export function CampaignFilters() {

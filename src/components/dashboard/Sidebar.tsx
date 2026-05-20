@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Megaphone, PlusCircle, Settings, LogOut, Brain } from "lucide-react";
+import { LayoutDashboard, Megaphone, PlusCircle, Settings, LogOut, Brain, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -10,6 +10,7 @@ const navigation = [
   { name: "Kampagnen", href: "/campaigns", icon: Megaphone },
   { name: "Neue Kampagne", href: "/campaigns/new", icon: PlusCircle },
   { name: "Brand Brain", href: "/settings/brand-brain", icon: Brain },
+  { name: "Canva", href: "/settings/canva", icon: Palette },
 ];
 
 interface SidebarProps {

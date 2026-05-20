@@ -7,11 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Send, CheckCircle, User, Bot } from "lucide-react";
 import { toast } from "sonner";
+import { approveStage } from "@/app/actions/approve";
 import type { FeedbackMessage, Concept } from "@/types/database";
 
 interface FeedbackChatProps {
   campaignId: string;
-  phase: "draft_concept" | "detail_concept";
   currentConcept: Concept;
   initialMessages: FeedbackMessage[];
   onConceptUpdate?: (concept: Concept) => void;
@@ -19,7 +19,6 @@ interface FeedbackChatProps {
 
 export function FeedbackChat({
   campaignId,
-  phase,
   currentConcept,
   initialMessages,
   onConceptUpdate,
@@ -30,8 +29,6 @@ export function FeedbackChat({
   const [sending, setSending] = useState(false);
   const [approving, setApproving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const phaseLabel = phase === "draft_concept" ? "Grobkonzept" : "Detailkonzept";
 
   // Auto-scroll bei neuen Nachrichten
   useEffect(() => {
@@ -49,7 +46,7 @@ export function FeedbackChat({
     const tempUserMsg: FeedbackMessage = {
       id: `temp-${Date.now()}`,
       campaign_id: campaignId,
-      phase,
+      phase: "concept",
       role: "user",
       content: userMessage,
       concept_snapshot: null,
@@ -61,24 +58,22 @@ export function FeedbackChat({
       const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaignId, phase, message: userMessage }),
+        body: JSON.stringify({ campaignId, message: userMessage }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
         toast.error("Feedback fehlgeschlagen", { description: data.error });
-        // Temporaere Nachricht entfernen
         setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
         setInput(userMessage);
         return;
       }
 
-      // Assistant-Antwort hinzufuegen
       const assistantMsg: FeedbackMessage = {
         id: `assistant-${Date.now()}`,
         campaign_id: campaignId,
-        phase,
+        phase: "concept",
         role: "assistant",
         content: data.message,
         concept_snapshot: data.updatedConcept,
@@ -86,7 +81,6 @@ export function FeedbackChat({
       };
       setMessages((prev) => [...prev, assistantMsg]);
 
-      // Konzept-Update propagieren
       onConceptUpdate?.({
         ...currentConcept,
         leitidee: data.updatedConcept.leitidee,
@@ -113,20 +107,12 @@ export function FeedbackChat({
   async function handleApprove() {
     setApproving(true);
     try {
-      const res = await fetch(`/api/campaigns/${campaignId}/approve-phase`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phase, action: "approve" }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error("Freigabe fehlgeschlagen", { description: data.error });
+      const result = await approveStage(campaignId, "concept");
+      if (!result.success) {
+        toast.error("Freigabe fehlgeschlagen", { description: result.error });
         return;
       }
-
-      toast.success(`${phaseLabel} freigegeben`);
+      toast.success("Konzept freigegeben");
       router.refresh();
     } catch {
       toast.error("Netzwerkfehler");
@@ -147,7 +133,7 @@ export function FeedbackChat({
       {/* Header mit Approve-Button */}
       <div className="flex items-center justify-between pb-4 border-b">
         <div>
-          <h3 className="font-medium">Feedback-Dialog: {phaseLabel}</h3>
+          <h3 className="font-medium">Feedback-Dialog</h3>
           <p className="text-sm text-muted-foreground">
             Iteration {currentConcept.iteration} &middot; {messages.length} Nachrichten
           </p>
@@ -170,7 +156,7 @@ export function FeedbackChat({
       <div className="flex-1 overflow-y-auto py-4 space-y-4 min-h-[300px] max-h-[500px]">
         {messages.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">
-            Gib Feedback um das {phaseLabel} zu verfeinern. Wenn du zufrieden bist, klicke &quot;Freigeben&quot;.
+            Gib Feedback um das Konzept zu verfeinern. Wenn du zufrieden bist, klicke &quot;Freigeben&quot;.
           </p>
         )}
 
@@ -228,7 +214,7 @@ export function FeedbackChat({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={`Feedback zum ${phaseLabel} eingeben...`}
+          placeholder="Feedback zum Konzept eingeben..."
           disabled={sending}
           rows={2}
           className="resize-none"

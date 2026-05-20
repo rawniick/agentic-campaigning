@@ -1,41 +1,17 @@
 import { z } from "zod";
 
-// Campaign Status Enum
+// Campaign Status Enum (V3 — Branch X)
 export const campaignStatusSchema = z.enum([
   "draft",
   "input_complete",
-  "strategy_proposed",
-  "strategy_selected",
   "concept_generated",
+  "concept_feedback",
   "concept_approved",
   "translating",
   "translations_ready",
-  "translations_approved",
   "rendering_assets",
   "assets_ready",
   "assets_approved",
-  "distributing",
-  "published",
-  "archived",
-  // v2 Flow
-  "input_review",
-  "input_confirmed",
-  "strategies_generated",
-  "draft_concept_generated",
-  "draft_concept_feedback",
-  "draft_concept_approved",
-  "detail_concept_generated",
-  "detail_concept_feedback",
-  "detail_concept_approved",
-]);
-
-export const approvalStageSchema = z.enum(["concept", "translations", "assets", "draft_concept", "detail_concept"]);
-export const conceptTypeSchema = z.enum(["draft", "detail", "legacy"]);
-export const approvalStatusSchema = z.enum([
-  "pending",
-  "approved",
-  "rejected",
-  "revision_requested",
 ]);
 
 // Schema fuer Konzept-Generator Output
@@ -102,26 +78,6 @@ export const conceptOutputSchema = z.object({
   }),
 });
 
-// Schema fuer Strategie-Vorschlaege
-export const strategyOptionsSchema = z.object({
-  strategy_options: z
-    .array(
-      z.object({
-        label: z.string(),
-        direction: z.string(),
-        rationale: z.string(),
-        leitidee_preview: z.string(),
-        claim_preview: z.string(),
-        tone: z.string(),
-        strength: z.string(),
-        risk: z.string(),
-      })
-    )
-    .length(2),
-  recommendation: z.number().int().min(0).max(1),
-  recommendation_reason: z.string(),
-});
-
 // Schema fuer Compliance-Checker Output
 export const complianceOutputSchema = z.object({
   overall_status: z.enum(["PASS", "FAIL", "WARNING"]),
@@ -147,32 +103,14 @@ export const complianceOutputSchema = z.object({
   recommendation: z.enum(["APPROVE", "REVISE", "BLOCK"]),
 });
 
-// v2: Grobkonzept Output Schema (ohne Kanaladaptionen)
-export const draftConceptOutputSchema = z.object({
-  positionierung: z.string(),
-  kreativ_richtung: z.string(),
-  leitidee: z.string(),
-  claims: z.array(z.string()).min(3).max(5),
-  hero_message: z.string(),
-  begruendung: z.string(),
-  key_visuals_direction: z.string(),
-  empfohlener_claim_index: z.number().int().min(0),
-});
-
-// v2: Feedback-Antwort Schema
+// Feedback-Antwort Schema (Konzept-Iteration via Chat)
 export const feedbackResponseSchema = z.object({
   antwort: z.string(),
   aenderungen: z.array(z.string()),
-  aktualisiertes_konzept: draftConceptOutputSchema.or(conceptOutputSchema.shape.kampagnensteckbrief.extend({
-    positionierung: z.string().optional(),
-    kreativ_richtung: z.string().optional(),
-    begruendung: z.string().optional(),
-  })),
+  aktualisiertes_konzept: conceptOutputSchema.shape.kampagnensteckbrief,
 });
 
 export type CampaignStatusType = z.infer<typeof campaignStatusSchema>;
 export type ConceptOutput = z.infer<typeof conceptOutputSchema>;
-export type DraftConceptOutput = z.infer<typeof draftConceptOutputSchema>;
 export type FeedbackResponse = z.infer<typeof feedbackResponseSchema>;
-export type StrategyOptions = z.infer<typeof strategyOptionsSchema>;
 export type ComplianceOutput = z.infer<typeof complianceOutputSchema>;

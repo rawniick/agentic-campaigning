@@ -1,9 +1,9 @@
-// Canva Connect API Integration (Mock-Modus wenn Env-Vars fehlen)
+// Canva Connect API Integration
+// Mock-Modus wenn Env-Vars fehlen oder kein Mapping konfiguriert ist.
 
 export interface CanvaConfig {
   clientId: string;
   clientSecret: string;
-  brandKitId: string;
 }
 
 export interface CanvaTemplate {
@@ -69,7 +69,7 @@ const MOCK_TEMPLATES: CanvaTemplate[] = Object.entries(FORMAT_MATRIX).flatMap(
   ([channel, formats]) =>
     formats.map((f) => ({
       id: `tmpl_${channel}_${f.format}`,
-      name: `Coop Mobile ${channel} ${f.format}`,
+      name: `Mock Template ${channel} ${f.format}`,
       channel,
       format: f.format,
       width: f.width,
@@ -84,46 +84,52 @@ const MOCK_TEMPLATES: CanvaTemplate[] = Object.entries(FORMAT_MATRIX).flatMap(
 export function buildCanvaConfig(): CanvaConfig | null {
   const clientId = process.env.CANVA_CLIENT_ID;
   const clientSecret = process.env.CANVA_CLIENT_SECRET;
-  const brandKitId = process.env.CANVA_BRAND_KIT_ID;
 
-  if (!clientId || !clientSecret || !brandKitId) {
+  if (!clientId || !clientSecret) {
     return null;
   }
 
-  return { clientId, clientSecret, brandKitId };
+  return { clientId, clientSecret };
 }
 
 /**
  * Verfuegbare Templates auflisten, optional nach Kanal gefiltert.
- * Delegiert an echte Canva API wenn Brand-Token vorhanden, sonst Mock.
+ * Quelle: User-konfigurierte Mappings in canva_template_mappings (UI: /settings/canva).
+ * Fallback: Mock-Templates (fuer Dev ohne Canva-Verbindung).
  */
 export async function listTemplates(
   _config: CanvaConfig | null,
   channel?: string,
   brand?: string
 ): Promise<CanvaTemplate[]> {
-  // Echte Canva API versuchen wenn Brand angegeben
+  // 1. DB-Mappings: User hat Templates manuell zugeordnet
   if (brand) {
     try {
-      const { isCanvaAvailable, listBrandTemplates } = await import("./canva-api");
-      const available = await isCanvaAvailable(brand);
-      if (available) {
-        const templates = await listBrandTemplates(brand);
-        return templates.map((t) => ({
-          id: t.id,
-          name: t.title,
-          channel: channel ?? "social",
-          format: "custom",
-          width: 0,
-          height: 0,
-        }));
+      const { getMappingsByBrand } = await import("@/lib/db/queries/canva-mappings");
+      const mappings = await getMappingsByBrand(brand);
+      if (mappings.length > 0) {
+        const fromMappings: CanvaTemplate[] = mappings.map((m) => {
+          const formatDef = FORMAT_MATRIX[m.channel]?.find((f) => f.format === m.format);
+          return {
+            id: m.canva_template_id,
+            name: m.canva_template_name ?? m.canva_template_id,
+            channel: m.channel,
+            format: m.format,
+            width: formatDef?.width ?? 0,
+            height: formatDef?.height ?? 0,
+          };
+        });
+        if (channel) {
+          return fromMappings.filter((t) => t.channel === channel);
+        }
+        return fromMappings;
       }
     } catch {
-      // Fallback auf Mock
+      // DB nicht erreichbar — weiter mit Mock
     }
   }
 
-  // Mock-Modus
+  // 2. Mock-Modus
   if (channel) {
     return MOCK_TEMPLATES.filter((t) => t.channel === channel);
   }
@@ -164,13 +170,7 @@ export async function fillTemplate(
   }
 
   // Mock-Modus
-  const template = MOCK_TEMPLATES.find((t) => t.id === templateId);
-  if (!template) {
-    throw new CanvaError("TEMPLATE_ERROR", `Template ${templateId} nicht gefunden`);
-  }
-
   const designId = `design_${templateId}_${Date.now()}`;
-
   return {
     id: designId,
     templateId,
@@ -179,18 +179,6 @@ export async function fillTemplate(
     thumbnailUrl: `https://mock.canva.com/thumbnails/${designId}_thumb.png`,
     createdAt: new Date().toISOString(),
   };
-}
-
-/**
- * Export-URL fuer ein Design abrufen.
- * Mock: gibt Placeholder-URL zurueck.
- */
-export async function getDesignExportUrl(
-  _config: CanvaConfig | null,
-  designId: string,
-  format: "png" | "pdf" | "jpg" = "png"
-): Promise<string> {
-  return `https://mock.canva.com/exports/${designId}.${format}`;
 }
 
 /**
