@@ -2,10 +2,12 @@ import type { ReactElement } from "react";
 import type { BrandTokens } from "../../../lib/brand/loadTokens";
 
 // Wingo Flash Sale — Display Halfpage 300x600 (DV360)
-// Satori-kompatibel: ausschliesslich Inline-Styles, keine Web-CSS-Features die
-// satori nicht versteht (z.B. CSS-Variables, grid mit auto-rows). Width/Height
-// werden vom Renderer ueber satori-options gesetzt; das Outer-div setzt sie
-// dennoch fest, damit der Static-Render-Test sie sieht.
+// Satori-kompatibel: ausschliesslich Inline-Styles. Layout-Variants:
+//   - 'price_bottom' (Default): logo → hero → headline → subline → price → cta → disclaimer
+//   - 'price_top':              logo → price → headline → subline → hero → cta → disclaimer
+// Brand-Mechanik: Grauer BG, Akzentfarbe Rot fuer Preis + CTA.
+
+export type FlashSaleHalfpageVariant = "price_top" | "price_bottom";
 
 export interface FlashSaleHalfpageProps {
   tokens: BrandTokens;
@@ -17,6 +19,7 @@ export interface FlashSaleHalfpageProps {
   disclaimer: string;
   heroImageUrl: string;
   logoSrc: string;
+  variant?: FlashSaleHalfpageVariant;
 }
 
 const WIDTH = 300;
@@ -28,6 +31,111 @@ export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
   const secondary = "#1D1D1B";
   const background = "#EFEFEF";
   const headlineFont = t.typography?.fonts?.headline?.family ?? "Inter";
+  const variant: FlashSaleHalfpageVariant = props.variant ?? "price_bottom";
+
+  // Slot-Bloecke einmal definieren, dann je nach Variant unterschiedlich anordnen.
+  const logoBlock = (
+    <div key="logo" style={{ display: "flex", padding: "16px 16px 8px 16px" }}>
+      <img src={props.logoSrc} alt="Wingo" style={{ width: 80, height: 24 }} />
+    </div>
+  );
+
+  const heroBlock = (
+    <div key="hero" style={{ display: "flex", width: WIDTH, height: 200, overflow: "hidden" }}>
+      <img
+        src={props.heroImageUrl}
+        alt=""
+        style={{ width: WIDTH, height: 200, objectFit: "cover" }}
+      />
+    </div>
+  );
+
+  const headlineBlock = (
+    <div
+      key="headline"
+      style={{
+        display: "flex",
+        padding: "12px 16px 4px 16px",
+        fontSize: 22,
+        fontWeight: 700,
+        lineHeight: 1.15,
+        color: secondary,
+      }}
+    >
+      {props.headline}
+    </div>
+  );
+
+  const sublineBlock = (
+    <div
+      key="subline"
+      style={{
+        display: "flex",
+        padding: "0 16px 8px 16px",
+        fontSize: 13,
+        fontWeight: 400,
+        lineHeight: 1.4,
+        color: secondary,
+      }}
+    >
+      {props.subline}
+    </div>
+  );
+
+  const priceBlock = (
+    <div
+      key="price"
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        padding: "8px 16px 0 16px",
+        color: primary,
+      }}
+    >
+      <span style={{ fontSize: 44, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
+      <span style={{ fontSize: 16, fontWeight: 400, marginLeft: 4 }}>{props.priceSuffix}</span>
+    </div>
+  );
+
+  const ctaBlock = (
+    <div key="cta" style={{ display: "flex", padding: "12px 16px 0 16px" }}>
+      <div
+        style={{
+          display: "flex",
+          backgroundColor: primary,
+          color: "#FFFFFF",
+          padding: "10px 18px",
+          fontSize: 14,
+          fontWeight: 700,
+          borderRadius: 4,
+        }}
+      >
+        {props.ctaLabel}
+      </div>
+    </div>
+  );
+
+  const spacer = <div key="spacer" style={{ display: "flex", flex: 1 }} />;
+
+  const disclaimerBlock = (
+    <div
+      key="disclaimer"
+      style={{
+        display: "flex",
+        padding: "4px 16px 8px 16px",
+        fontSize: 8,
+        lineHeight: 1.2,
+        color: "#525252",
+      }}
+    >
+      {props.disclaimer}
+    </div>
+  );
+
+  const order =
+    variant === "price_top"
+      ? [logoBlock, priceBlock, headlineBlock, sublineBlock, heroBlock, ctaBlock, spacer, disclaimerBlock]
+      : [logoBlock, heroBlock, headlineBlock, sublineBlock, priceBlock, ctaBlock, spacer, disclaimerBlock];
 
   return (
     <div
@@ -43,104 +151,7 @@ export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
         overflow: "hidden",
       }}
     >
-      {/* Logo */}
-      <div style={{ display: "flex", padding: "16px 16px 8px 16px" }}>
-        <img src={props.logoSrc} alt="Wingo" style={{ width: 80, height: 24 }} />
-      </div>
-
-      {/* Hero-Image */}
-      <div
-        style={{
-          display: "flex",
-          width: WIDTH,
-          height: 200,
-          overflow: "hidden",
-        }}
-      >
-        <img
-          src={props.heroImageUrl}
-          alt=""
-          style={{ width: WIDTH, height: 200, objectFit: "cover" }}
-        />
-      </div>
-
-      {/* Headline */}
-      <div
-        style={{
-          display: "flex",
-          padding: "12px 16px 4px 16px",
-          fontSize: 22,
-          fontWeight: 700,
-          lineHeight: 1.15,
-          color: secondary,
-        }}
-      >
-        {props.headline}
-      </div>
-
-      {/* Subline */}
-      <div
-        style={{
-          display: "flex",
-          padding: "0 16px 8px 16px",
-          fontSize: 13,
-          fontWeight: 400,
-          lineHeight: 1.4,
-          color: secondary,
-        }}
-      >
-        {props.subline}
-      </div>
-
-      {/* Preis */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          padding: "8px 16px 0 16px",
-          color: primary,
-        }}
-      >
-        <span style={{ fontSize: 44, fontWeight: 700, lineHeight: 1 }}>
-          {props.pricePromo}
-        </span>
-        <span style={{ fontSize: 16, fontWeight: 400, marginLeft: 4 }}>
-          {props.priceSuffix}
-        </span>
-      </div>
-
-      {/* CTA */}
-      <div style={{ display: "flex", padding: "12px 16px 0 16px" }}>
-        <div
-          style={{
-            display: "flex",
-            backgroundColor: primary,
-            color: "#FFFFFF",
-            padding: "10px 18px",
-            fontSize: 14,
-            fontWeight: 700,
-            borderRadius: 4,
-          }}
-        >
-          {props.ctaLabel}
-        </div>
-      </div>
-
-      {/* Spacer push disclaimer to bottom */}
-      <div style={{ display: "flex", flex: 1 }} />
-
-      {/* Disclaimer */}
-      <div
-        style={{
-          display: "flex",
-          padding: "4px 16px 8px 16px",
-          fontSize: 8,
-          lineHeight: 1.2,
-          color: "#525252",
-        }}
-      >
-        {props.disclaimer}
-      </div>
+      {order}
     </div>
   );
 }

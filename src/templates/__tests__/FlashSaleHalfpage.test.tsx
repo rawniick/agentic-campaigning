@@ -59,4 +59,38 @@ describe("FlashSaleHalfpage", () => {
     expect(html).toMatch(/width:\s*['"]?300/);
     expect(html).toMatch(/height:\s*['"]?600/);
   });
+
+  describe("layout variants", () => {
+    // React 19 emit `<link rel="preload" as="image" href="...">` tags vor dem
+    // eigentlichen Markup, daher suchen wir nach dem `src=`-Pattern um den
+    // tatsaechlichen <img> zu finden, nicht den Preload-Hint.
+    const HERO_IMG_PATTERN = 'src="https://example.test/hero.jpg"';
+
+    it("price_top variant places the price BEFORE the hero image in DOM order", () => {
+      const html = renderToStaticMarkup(
+        <FlashSaleHalfpage {...baseProps} variant="price_top" />
+      );
+      const priceIdx = html.indexOf("19.95");
+      const heroIdx = html.indexOf(HERO_IMG_PATTERN);
+      expect(priceIdx).toBeGreaterThan(-1);
+      expect(heroIdx).toBeGreaterThan(-1);
+      expect(priceIdx).toBeLessThan(heroIdx);
+    });
+
+    it("price_bottom variant places the hero image BEFORE the price in DOM order", () => {
+      const html = renderToStaticMarkup(
+        <FlashSaleHalfpage {...baseProps} variant="price_bottom" />
+      );
+      const priceIdx = html.indexOf("19.95");
+      const heroIdx = html.indexOf(HERO_IMG_PATTERN);
+      expect(heroIdx).toBeLessThan(priceIdx);
+    });
+
+    it("defaults to price_bottom (= existing layout) when no variant given", () => {
+      const html = renderToStaticMarkup(<FlashSaleHalfpage {...baseProps} />);
+      const priceIdx = html.indexOf("19.95");
+      const heroIdx = html.indexOf(HERO_IMG_PATTERN);
+      expect(heroIdx).toBeLessThan(priceIdx);
+    });
+  });
 });
