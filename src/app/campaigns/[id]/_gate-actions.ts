@@ -7,6 +7,7 @@ import { getActiveBrandConfig } from "@/lib/brand/server";
 import { createSupabaseStorage } from "@/lib/storage/supabaseStorage";
 import { approveCopy } from "@/lib/gates/approveCopy";
 import { uploadHero } from "@/lib/gates/uploadHero";
+import { selectHeroFromLibrary } from "@/lib/gates/selectHeroFromLibrary";
 import { selectLayoutVariant } from "@/lib/gates/selectLayoutVariant";
 import { finalRender } from "@/lib/gates/finalRender";
 import { reopenToGate, type ReopenTarget } from "@/lib/gates/reopenToGate";
@@ -56,6 +57,24 @@ export async function uploadHeroGateAction(formData: FormData) {
     campaignId,
     event: "GATE2_HERO_UPLOADED",
     payload: { filename: hero.name, size: bytes.length },
+  });
+  revalidatePath(`/campaigns/${campaignId}`);
+}
+
+const selectFromLibrarySchema = z.object({
+  campaignId: z.string().uuid(),
+  libraryEntryId: z.string().uuid(),
+});
+
+export async function selectHeroFromLibraryGateAction(formData: FormData) {
+  const { campaignId, libraryEntryId } = selectFromLibrarySchema.parse(
+    Object.fromEntries(formData)
+  );
+  await selectHeroFromLibrary(getDb(), { campaignId, libraryEntryId });
+  await writeAudit(getDb(), {
+    campaignId,
+    event: "GATE2_HERO_SELECTED_FROM_LIBRARY",
+    payload: { libraryEntryId },
   });
   revalidatePath(`/campaigns/${campaignId}`);
 }

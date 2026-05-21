@@ -50,6 +50,20 @@ export default function DashboardPage() {
             </Link>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Hero Library</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Bilder pflegen die Gate 2 vorschlaegt.
+            </p>
+            <Link href="/admin/hero-library" className="mt-4 inline-block">
+              <Button variant="outline">Hero Library</Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
 
       <p className="mt-12 text-xs text-muted-foreground">

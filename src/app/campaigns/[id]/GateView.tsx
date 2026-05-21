@@ -6,10 +6,20 @@ import { Label } from "@/components/ui/label";
 import {
   approveCopyGateAction,
   uploadHeroGateAction,
+  selectHeroFromLibraryGateAction,
   selectLayoutGateAction,
   finalRenderGateAction,
   reopenGateAction,
 } from "./_gate-actions";
+
+interface LibraryEntry {
+  id: string;
+  name: string;
+  storage_url: string;
+  categories: string[];
+  lifestyles: string[];
+  seasons: string[];
+}
 
 interface Props {
   campaignId: string;
@@ -37,6 +47,7 @@ interface Props {
       }
     | null;
   assets: Array<{ id: string; storage_url: string; language: string }>;
+  libraryEntries: LibraryEntry[];
 }
 
 function GateBadge({ active, done }: { active: boolean; done: boolean }) {
@@ -61,6 +72,7 @@ export function GateView({
   hero,
   layout,
   assets,
+  libraryEntries,
 }: Props) {
   const [selectedHeadlineIdx, setSelectedHeadlineIdx] = useState<number>(0);
 
@@ -147,32 +159,82 @@ export function GateView({
         </section>
       )}
 
-      {/* Gate 2: Hero Upload */}
+      {/* Gate 2: Hero (Library Picker + Upload) */}
       {inHero && (
-        <section className="rounded-md border bg-card p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Gate 2 — Hero-Bild</h2>
-          <p className="mb-4 text-xs text-muted-foreground">
-            V1 nur Upload. Library + AI-Gen folgen in Phase 5.
-          </p>
-          <form
-            action={uploadHeroGateAction}
-            className="space-y-4"
-            encType="multipart/form-data"
-          >
-            <input type="hidden" name="campaignId" value={campaignId} />
-            <div className="space-y-2">
-              <Label htmlFor="hero">Bilddatei (JPG/PNG)</Label>
-              <input
-                id="hero"
-                name="hero"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                required
-                className="border-input bg-background h-10 w-full rounded-md border px-3 py-2 text-sm"
-              />
-            </div>
-            <Button type="submit">Hero hochladen</Button>
-          </form>
+        <section className="rounded-md border bg-card p-6 shadow-sm space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold">Gate 2 — Hero-Bild</h2>
+            <p className="text-xs text-muted-foreground">
+              Pick aus der Library oder lade ein eigenes Bild hoch. AI-Gen folgt
+              in einer spaeteren Slice.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-sm font-semibold">
+              Library ({libraryEntries.length})
+            </h3>
+            {libraryEntries.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Noch keine Bilder in der Library.{" "}
+                <a
+                  href="/admin/hero-library"
+                  className="underline hover:text-foreground"
+                >
+                  Pflegen
+                </a>
+                .
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {libraryEntries.map((e) => (
+                  <form
+                    key={e.id}
+                    action={selectHeroFromLibraryGateAction}
+                    className="space-y-2 rounded-md border bg-background p-3"
+                  >
+                    <input type="hidden" name="campaignId" value={campaignId} />
+                    <input type="hidden" name="libraryEntryId" value={e.id} />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={e.storage_url}
+                      alt={e.name}
+                      className="h-28 w-full rounded border bg-muted object-cover"
+                    />
+                    <div className="truncate text-xs font-medium">{e.name}</div>
+                    <Button type="submit" size="sm" className="w-full">
+                      Pick this
+                    </Button>
+                  </form>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-md border-t pt-6">
+            <h3 className="mb-3 text-sm font-semibold">Eigenes Bild hochladen</h3>
+            <form
+              action={uploadHeroGateAction}
+              className="space-y-4"
+              encType="multipart/form-data"
+            >
+              <input type="hidden" name="campaignId" value={campaignId} />
+              <div className="space-y-2">
+                <Label htmlFor="hero">Bilddatei (JPG/PNG)</Label>
+                <input
+                  id="hero"
+                  name="hero"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  required
+                  className="border-input bg-background h-10 w-full rounded-md border px-3 py-2 text-sm"
+                />
+              </div>
+              <Button type="submit" variant="outline">
+                Hero hochladen
+              </Button>
+            </form>
+          </div>
         </section>
       )}
 

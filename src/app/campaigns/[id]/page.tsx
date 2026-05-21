@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/server";
 import { getCampaignById } from "@/lib/db/queries/campaigns";
 import { getAssetsForCampaign } from "@/lib/db/queries/assets";
+import { listHeroLibrary } from "@/lib/db/queries/hero-library";
 import { GateView } from "./GateView";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export default async function CampaignDetailPage({ params }: PageProps) {
   const campaign = await getCampaignById(db, id);
   if (!campaign) notFound();
 
-  const [assets, copyRes, heroRes, layoutRes] = await Promise.all([
+  const [assets, copyRes, heroRes, layoutRes, libraryEntries] = await Promise.all([
     getAssetsForCampaign(db, id),
     db.query<{
       headlines: string[];
@@ -39,6 +40,7 @@ export default async function CampaignDetailPage({ params }: PageProps) {
       `SELECT master_format, variant, is_approved FROM campaign_layout WHERE campaign_id = $1`,
       [id]
     ),
+    listHeroLibrary(db, campaign.brand_id),
   ]);
 
   return (
@@ -79,6 +81,14 @@ export default async function CampaignDetailPage({ params }: PageProps) {
             id: a.id,
             storage_url: a.storage_url,
             language: a.language,
+          }))}
+          libraryEntries={libraryEntries.map((e) => ({
+            id: e.id,
+            name: e.name,
+            storage_url: e.storage_url,
+            categories: e.categories,
+            lifestyles: e.lifestyles,
+            seasons: e.seasons,
           }))}
         />
       </div>
