@@ -32,8 +32,8 @@ export default async function CampaignDetailPage({ params }: PageProps) {
          FROM campaign_copy WHERE campaign_id = $1 AND language = 'de'`,
       [id]
     ),
-    db.query<{ storage_url: string; is_approved: boolean }>(
-      `SELECT storage_url, is_approved FROM campaign_hero WHERE campaign_id = $1`,
+    db.query<{ storage_url: string; is_approved: boolean; source: string }>(
+      `SELECT storage_url, is_approved, source FROM campaign_hero WHERE campaign_id = $1`,
       [id]
     ),
     db.query<{ master_format: string; variant: string; is_approved: boolean }>(

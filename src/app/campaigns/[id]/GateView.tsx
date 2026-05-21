@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   approveCopyGateAction,
@@ -9,6 +10,7 @@ import {
   selectHeroFromLibraryGateAction,
   selectLayoutGateAction,
   finalRenderGateAction,
+  promoteHeroToLibraryGateAction,
   reopenGateAction,
 } from "./_gate-actions";
 
@@ -37,6 +39,7 @@ interface Props {
     | {
         storage_url: string;
         is_approved: boolean;
+        source: string;
       }
     | null;
   layout:
@@ -318,6 +321,58 @@ export function GateView({
               ))}
             </div>
           )}
+        </section>
+      )}
+
+      {/* Hero in Library aufnehmen — sichtbar nur wenn Hero nicht selbst aus
+          der Library kam (sonst Duplikat). */}
+      {isDone && hero && hero.source !== "library" && (
+        <section className="rounded-md border bg-card p-6 shadow-sm">
+          <h2 className="text-lg font-semibold">Hero in Library aufnehmen</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Macht das verwendete Hero-Bild fuer kommende Kampagnen wiederverwendbar.
+          </p>
+          <form action={promoteHeroToLibraryGateAction} className="space-y-4">
+            <input type="hidden" name="campaignId" value={campaignId} />
+            <div className="space-y-2">
+              <Label htmlFor="lib-name">Anzeige-Name</Label>
+              <Input
+                id="lib-name"
+                name="name"
+                required
+                placeholder="z.B. Familie Picknick Sommer"
+              />
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="lib-categories">Kategorien</Label>
+                <Input
+                  id="lib-categories"
+                  name="categories"
+                  placeholder="mobile, tv, internet"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lib-lifestyles">Lifestyles</Label>
+                <Input
+                  id="lib-lifestyles"
+                  name="lifestyles"
+                  placeholder="sport, familie, junge"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lib-seasons">Saison</Label>
+                <Input
+                  id="lib-seasons"
+                  name="seasons"
+                  placeholder="weihnachten, sommer, always_on"
+                />
+              </div>
+            </div>
+            <Button type="submit" variant="outline">
+              In Library aufnehmen
+            </Button>
+          </form>
         </section>
       )}
 

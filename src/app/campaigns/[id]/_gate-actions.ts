@@ -11,6 +11,7 @@ import { selectHeroFromLibrary } from "@/lib/gates/selectHeroFromLibrary";
 import { selectLayoutVariant } from "@/lib/gates/selectLayoutVariant";
 import { finalRender } from "@/lib/gates/finalRender";
 import { reopenToGate, type ReopenTarget } from "@/lib/gates/reopenToGate";
+import { promoteHeroToLibrary } from "@/lib/heroLibrary/promoteHeroToLibrary";
 import { writeAudit } from "@/lib/db/queries/audit";
 
 const approveCopySchema = z.object({
@@ -114,6 +115,40 @@ export async function finalRenderGateAction(formData: FormData) {
     payload: {},
   });
   revalidatePath(`/campaigns/${campaignId}`);
+}
+
+const promoteSchema = z.object({
+  campaignId: z.string().uuid(),
+  name: z.string().min(1),
+  categories: z.string().optional(),
+  lifestyles: z.string().optional(),
+  seasons: z.string().optional(),
+});
+
+function parseTags(raw: string | undefined): string[] | undefined {
+  if (raw === undefined || raw.trim() === "") return undefined;
+  return raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export async function promoteHeroToLibraryGateAction(formData: FormData) {
+  const data = promoteSchema.parse(Object.fromEntries(formData));
+  const entry = await promoteHeroToLibrary(getDb(), {
+    campaignId: data.campaignId,
+    name: data.name,
+    categories: parseTags(data.categories),
+    lifestyles: parseTags(data.lifestyles),
+    seasons: parseTags(data.seasons),
+  });
+  await writeAudit(getDb(), {
+    campaignId: data.campaignId,
+    event: "HERO_PROMOTED_TO_LIBRARY",
+    payload: { libraryEntryId: entry.id, name: entry.name },
+  });
+  revalidatePath(`/campaigns/${data.campaignId}`);
+  revalidatePath(`/admin/hero-library`);
 }
 
 const reopenSchema = z.object({
