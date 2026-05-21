@@ -1,5 +1,6 @@
 import type { Db } from "../db/types";
 import type { AssetStorage } from "../storage/types";
+import type { EmbeddingProvider } from "../embedding/types";
 import {
   createHeroLibraryEntry,
   type HeroLibraryEntry,
@@ -23,7 +24,8 @@ export interface UploadToHeroLibraryInput {
 export async function uploadToHeroLibrary(
   db: Db,
   storage: AssetStorage,
-  input: UploadToHeroLibraryInput
+  input: UploadToHeroLibraryInput,
+  embeddingProvider?: EmbeddingProvider
 ): Promise<HeroLibraryEntry> {
   if (input.bytes.length === 0) {
     throw new Error("Hero-library upload: bytes are empty");
@@ -33,6 +35,10 @@ export async function uploadToHeroLibrary(
   const key = `hero-library/${input.brandSlug}/${Date.now()}-${safeName}`;
   const { url } = await storage.upload(key, input.bytes, input.contentType);
 
+  const embedding = embeddingProvider
+    ? await embeddingProvider.embed(input.name)
+    : undefined;
+
   return createHeroLibraryEntry(db, {
     brand_id: input.brand_id,
     name: input.name,
@@ -40,5 +46,6 @@ export async function uploadToHeroLibrary(
     categories: input.categories,
     lifestyles: input.lifestyles,
     seasons: input.seasons,
+    embedding,
   });
 }

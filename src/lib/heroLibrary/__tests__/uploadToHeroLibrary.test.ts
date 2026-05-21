@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { createTestDb } from "../../db/__tests__/fixtures/createTestDb";
 import { createInMemoryStorage } from "../../storage/inMemoryStorage";
+import { createMockEmbeddingProvider } from "../../embedding/mockEmbeddingProvider";
 import { uploadToHeroLibrary } from "../uploadToHeroLibrary";
 import { listHeroLibrary } from "../../db/queries/hero-library";
 
@@ -69,6 +70,29 @@ describe("uploadToHeroLibrary", () => {
 
     const key = entry.storage_url.replace("memory://", "");
     expect(key.startsWith("hero-library/wingo/")).toBe(true);
+  });
+
+  it("embeds entry name on save when provider is given", async () => {
+    const storage = createInMemoryStorage();
+    const provider = createMockEmbeddingProvider({
+      "Sport Sample": [0.9, 0.1, 0.1],
+    });
+
+    const entry = await uploadToHeroLibrary(
+      db,
+      storage,
+      {
+        brand_id: wingoId,
+        brandSlug: "wingo",
+        name: "Sport Sample",
+        bytes: JPEG_MAGIC,
+        contentType: "image/jpeg",
+        filename: "sport.jpg",
+      },
+      provider
+    );
+
+    expect(entry.embedding).toEqual([0.9, 0.1, 0.1]);
   });
 
   it("rejects empty bytes", async () => {
