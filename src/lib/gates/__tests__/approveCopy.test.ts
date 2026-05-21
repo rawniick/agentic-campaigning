@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { createTestDb } from "../../db/__tests__/fixtures/createTestDb";
 import { createCampaign } from "../../db/queries/campaigns";
 import { approveCopy } from "../approveCopy";
 import type { Brief } from "../../schemas/brief";
+import type { TranslateLLMResponse } from "../../copy/translateCampaignCopy";
 
 const VALID_BRIEF: Brief = {
   kampagne: {
@@ -90,5 +91,44 @@ describe("approveCopy (Gate 1)", () => {
     await expect(
       approveCopy(db, { campaignId, headlineIndex: -1 })
     ).rejects.toThrow();
+  });
+
+  it("triggers batch translation when translateOptions is provided", async () => {
+    const translated: TranslateLLMResponse = {
+      fr: { headlines: ["FR H1", "FR H2", "FR H3"], subline: "FR Sub", cta_label: "FR CTA" },
+      it: { headlines: ["IT H1", "IT H2", "IT H3"], subline: "IT Sub", cta_label: "IT CTA" },
+      en: { headlines: ["EN H1", "EN H2", "EN H3"], subline: "EN Sub", cta_label: "EN CTA" },
+    };
+    const llm = vi.fn().mockResolvedValue(translated);
+
+    await approveCopy(db, {
+      campaignId,
+      headlineIndex: 1,
+      translateOptions: {
+        passthroughTerms: ["Wingo", "Swisscom"],
+        llm,
+      },
+    });
+
+    expect(llm).toHaveBeenCalledOnce();
+
+    const rows = await db.query<{ language: string; subline: string; selected_headline_idx: number | null }>(
+      `SELECT language, subline, selected_headline_idx FROM campaign_copy WHERE campaign_id = $1 ORDER BY language`,
+      [campaignId]
+    );
+    expect(rows.rows.map((r) => r.language)).toEqual(["de", "en", "fr", "it"]);
+    expect(rows.rows.find((r) => r.language === "fr")?.subline).toBe("FR Sub");
+    // Approval-Index aus DE wird auf alle Sprachen propagiert (eine Headline-Variante = Master)
+    expect(rows.rows.find((r) => r.language === "fr")?.selected_headline_idx).toBe(1);
+  });
+
+  it("does NOT call translation when translateOptions is omitted (backward compat)", async () => {
+    await approveCopy(db, { campaignId, headlineIndex: 0 });
+    const rows = await db.query<{ language: string }>(
+      `SELECT language FROM campaign_copy WHERE campaign_id = $1`,
+      [campaignId]
+    );
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0].language).toBe("de");
   });
 });

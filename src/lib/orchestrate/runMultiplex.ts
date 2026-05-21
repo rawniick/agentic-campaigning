@@ -52,7 +52,25 @@ interface GateData {
   variant: string;
 }
 
-async function loadGateData(db: Db, campaignId: string): Promise<GateData> {
+function disclaimerColumnFor(language: string): "text_de" | "text_fr" | "text_it" | "text_en" {
+  switch (language) {
+    case "de":
+      return "text_de";
+    case "fr":
+      return "text_fr";
+    case "it":
+      return "text_it";
+    case "en":
+      return "text_en";
+    default:
+      return "text_de";
+  }
+}
+
+// Liefert eine GateData-Zeile pro approved Sprache der Kampagne.
+// Disclaimer-Text wird pro Sprache aus der disclaimers-Tabelle gezogen
+// (NIE via LLM uebersetzt — Compliance-Pass-through).
+async function loadGateDataPerLanguage(db: Db, campaignId: string): Promise<GateData[]> {
   const res = await db.query<{
     brand_id: string;
     art: string;
@@ -74,46 +92,65 @@ async function loadGateData(db: Db, campaignId: string): Promise<GateData> {
         ch.storage_url AS hero_url,
         cl.variant
        FROM campaigns c
-       LEFT JOIN campaign_copy cc ON cc.campaign_id = c.id AND cc.language = 'de'
+       JOIN campaign_copy cc ON cc.campaign_id = c.id AND cc.is_approved = true
        LEFT JOIN campaign_hero ch ON ch.campaign_id = c.id
        LEFT JOIN campaign_layout cl ON cl.campaign_id = c.id
       WHERE c.id = $1`,
     [campaignId]
   );
-  const row = res.rows[0];
-  if (!row) throw new Error(`Campaign ${campaignId} not found`);
-
-  let disclaimerText = "";
-  if (row.disclaimer_ids && row.disclaimer_ids.length > 0) {
-    const lang = row.language ?? "de";
-    const col =
-      lang === "de"
-        ? "text_de"
-        : lang === "fr"
-          ? "text_fr"
-          : lang === "it"
-            ? "text_it"
-            : "text_en";
-    const d = await db.query<{ text: string }>(
-      `SELECT ${col} AS text FROM disclaimers WHERE id = ANY($1::uuid[]) ORDER BY slug LIMIT 1`,
-      [row.disclaimer_ids]
-    );
-    disclaimerText = d.rows[0]?.text ?? "";
+  if (res.rows.length === 0) {
+    throw new Error(`Campaign ${campaignId} has no approved copy`);
   }
 
-  return {
-    brand_id: row.brand_id,
-    kampagne_art: row.art as CampaignArt,
-    price_promo: row.price_promo,
-    price_suffix: row.price_suffix,
-    language: row.language,
-    headline: row.headlines[row.selected_headline_idx],
-    subline: row.subline,
-    cta_label: row.cta_label,
-    disclaimer_text: disclaimerText,
-    hero_url: row.hero_url,
-    variant: row.variant,
-  };
+  // Collect all distinct disclaimer ids across languages — one query, one map per lang
+  const allIds = Array.from(
+    new Set(res.rows.flatMap((r) => r.disclaimer_ids ?? []))
+  );
+  const disclaimerTexts = new Map<string, Record<string, string>>(); // id -> {de,fr,it,en}
+  if (allIds.length > 0) {
+    const d = await db.query<{
+      id: string;
+      text_de: string;
+      text_fr: string;
+      text_it: string;
+      text_en: string;
+      slug: string;
+    }>(
+      `SELECT id, text_de, text_fr, text_it, text_en, slug
+         FROM disclaimers
+        WHERE id = ANY($1::uuid[])
+        ORDER BY slug`,
+      [allIds]
+    );
+    for (const row of d.rows) {
+      disclaimerTexts.set(row.id, {
+        de: row.text_de,
+        fr: row.text_fr,
+        it: row.text_it,
+        en: row.text_en,
+      });
+    }
+  }
+
+  return res.rows.map((row) => {
+    const firstId = row.disclaimer_ids?.[0];
+    const texts = firstId ? disclaimerTexts.get(firstId) : undefined;
+    const col = disclaimerColumnFor(row.language).slice(5) as "de" | "fr" | "it" | "en";
+    const disclaimer_text = texts?.[col] ?? "";
+    return {
+      brand_id: row.brand_id,
+      kampagne_art: row.art as CampaignArt,
+      price_promo: row.price_promo,
+      price_suffix: row.price_suffix,
+      language: row.language,
+      headline: row.headlines[row.selected_headline_idx],
+      subline: row.subline,
+      cta_label: row.cta_label,
+      disclaimer_text,
+      hero_url: row.hero_url,
+      variant: row.variant,
+    };
+  });
 }
 
 async function renderOneFormat(
@@ -195,18 +232,31 @@ export async function runMultiplex(
   ]);
 
   try {
-    const data = await loadGateData(db, input.campaignId);
+    const dataPerLang = await loadGateDataPerLanguage(db, input.campaignId);
+    const kampagneArt = dataPerLang[0].kampagne_art;
     const v1Formats = await getV1Formats(db);
 
     const renderableTargets: Array<{ format: FormatSpec; component: TemplateComponent }> =
       [];
     for (const format of v1Formats) {
-      const component = findTemplate(format.code, data.kampagne_art);
+      const component = findTemplate(format.code, kampagneArt);
       if (component) renderableTargets.push({ format, component });
     }
 
+    // Cartesian product: jedes Format x jede Sprache
+    const renderTasks: Array<{
+      format: FormatSpec;
+      component: TemplateComponent;
+      data: GateData;
+    }> = [];
+    for (const target of renderableTargets) {
+      for (const data of dataPerLang) {
+        renderTasks.push({ ...target, data });
+      }
+    }
+
     const assets = await Promise.all(
-      renderableTargets.map(({ format, component }) =>
+      renderTasks.map(({ format, component, data }) =>
         renderOneFormat(
           db,
           storage,

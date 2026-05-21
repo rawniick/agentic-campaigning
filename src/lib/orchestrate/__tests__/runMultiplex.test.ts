@@ -242,4 +242,96 @@ describe("runMultiplex", () => {
     );
     expect(r.rows[0].status).toBe("failed");
   });
+
+  describe("multi-language", () => {
+    beforeEach(async () => {
+      // Add FR/IT/EN copies on top of the DE row inserted by the outer beforeEach
+      for (const lang of ["fr", "it", "en"] as const) {
+        await db.query(
+          `INSERT INTO campaign_copy
+             (campaign_id, language, headlines, subline, cta_label, disclaimer_ids,
+              selected_headline_idx, is_approved, approved_at)
+             VALUES ($1, $2,
+                     ARRAY[$3,$4,$5], $6, $7,
+                     ARRAY[$8]::uuid[], 1, true, now())`,
+          [
+            campaignId,
+            lang,
+            `${lang.toUpperCase()} H0`,
+            `${lang.toUpperCase()} H1`,
+            `${lang.toUpperCase()} H2`,
+            `${lang.toUpperCase()} Subline`,
+            `${lang.toUpperCase()} CTA`,
+            disclaimerId,
+          ]
+        );
+      }
+    });
+
+    it("renders 11 templates x 4 languages = 44 assets", async () => {
+      const storage = createInMemoryStorage();
+      const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+      const result = await runMultiplex(db, storage, {
+        campaignId,
+        brandConfig,
+        logoUrl: "memory://logo.svg",
+        renderToPng: renderSpy,
+      });
+
+      const expectedCount = listRegisteredFormatCodes("flash_sale").length * 4;
+      expect(result.assets).toHaveLength(expectedCount);
+
+      const dbAssets = await db.query<{ language: string }>(
+        `SELECT language FROM assets WHERE campaign_id = $1`,
+        [campaignId]
+      );
+      const langCounts = dbAssets.rows.reduce<Record<string, number>>(
+        (acc, r) => {
+          acc[r.language] = (acc[r.language] ?? 0) + 1;
+          return acc;
+        },
+        {}
+      );
+      const perLanguage = listRegisteredFormatCodes("flash_sale").length;
+      expect(langCounts).toEqual({
+        de: perLanguage,
+        fr: perLanguage,
+        it: perLanguage,
+        en: perLanguage,
+      });
+    });
+
+    it("loads the matched disclaimer text per language, not via LLM translation", async () => {
+      const storage = createInMemoryStorage();
+      const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+      await runMultiplex(db, storage, {
+        campaignId,
+        brandConfig,
+        logoUrl: "memory://logo.svg",
+        renderToPng: renderSpy,
+      });
+
+      // Find a call for each language and check the disclaimer prop
+      const calls = renderSpy.mock.calls as Array<
+        [{ props: { disclaimer: string; headline: string } }, unknown]
+      >;
+      // Group disclaimers by language inferred from headline content
+      const seen: Record<string, string> = {};
+      for (const [jsx] of calls) {
+        if (jsx.props.headline.startsWith("DE")) seen.de = jsx.props.disclaimer;
+        else if (jsx.props.headline.startsWith("FR")) seen.fr = jsx.props.disclaimer;
+        else if (jsx.props.headline.startsWith("IT")) seen.it = jsx.props.disclaimer;
+        else if (jsx.props.headline.startsWith("EN")) seen.en = jsx.props.disclaimer;
+        else if (jsx.props.headline === "Headline 1") seen.de = jsx.props.disclaimer;
+      }
+      // The fixture disclaimer rows were inserted with:
+      //   text_de='5G im Swisscom Netz', text_fr='fr', text_it='it', text_en='en'
+      expect(seen.de).toBe("5G im Swisscom Netz");
+      expect(seen.fr).toBe("fr");
+      expect(seen.it).toBe("it");
+      expect(seen.en).toBe("en");
+    });
+  });
 });

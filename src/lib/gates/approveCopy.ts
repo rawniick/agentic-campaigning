@@ -1,9 +1,19 @@
 import type { Db } from "../db/types";
 import { transitionGate, type CampaignState } from "../state/transitionGate";
+import {
+  translateCampaignCopy,
+  type TranslateLLMFn,
+} from "../copy/translateCampaignCopy";
 
 export interface ApproveCopyInput {
   campaignId: string;
   headlineIndex: number;
+  // Wenn gesetzt: nach erfolgreichem Approval wird die DE-Copy via Batch-LLM-Call
+  // in FR/IT/EN uebersetzt und als 3 weitere campaign_copy-Rows persistiert.
+  translateOptions?: {
+    passthroughTerms: string[];
+    llm: TranslateLLMFn;
+  };
 }
 
 // Gate-1-Action: User waehlt eine der generierten Headlines und gibt Copy frei.
@@ -51,5 +61,16 @@ export async function approveCopy(db: Db, input: ApproveCopyInput): Promise<void
   } catch (e) {
     await db.query(`ROLLBACK`);
     throw e;
+  }
+
+  // Translation laeuft NACH dem Commit. Wenn sie fehlschlaegt, ist die DE-Copy
+  // weiterhin approved — der User kann Translation in Folge re-triggern, ohne
+  // den State-Change rueckabwickeln zu muessen.
+  if (input.translateOptions) {
+    await translateCampaignCopy(db, {
+      campaignId,
+      passthroughTerms: input.translateOptions.passthroughTerms,
+      llm: input.translateOptions.llm,
+    });
   }
 }

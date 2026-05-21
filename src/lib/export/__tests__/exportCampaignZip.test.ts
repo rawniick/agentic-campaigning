@@ -105,4 +105,38 @@ describe("exportCampaignZip", () => {
     const hpEntry = archive.getEntry("wingo_flashsale_halfpage_300x600_de.png");
     expect(hpEntry?.getData().equals(halfpageBytes)).toBe(true);
   });
+
+  it("groups one entry per (format x language) with the language suffix in the filename", async () => {
+    const storage = createInMemoryStorage();
+    const languages: Array<"de" | "fr" | "it" | "en"> = ["de", "fr", "it", "en"];
+
+    for (const lang of languages) {
+      const bytes = Buffer.from(`HALFPAGE-${lang.toUpperCase()}`);
+      const { url } = await storage.upload(`hp-${lang}.png`, bytes, "image/png");
+      await createAsset(db, {
+        campaign_id: campaignId,
+        format_id: halfpageFormatId,
+        language: lang,
+        storage_url: url,
+        file_size_bytes: bytes.length,
+        mime_type: "image/png",
+      });
+    }
+
+    const zipBuf = await exportCampaignZip(db, campaignId, async (url) => {
+      const key = url.replace("memory://", "");
+      const bytes = storage.read(key);
+      if (!bytes) throw new Error(`Missing: ${key}`);
+      return bytes;
+    });
+
+    const archive = new AdmZip(zipBuf);
+    const names = archive.getEntries().map((e) => e.entryName).sort();
+    expect(names).toEqual([
+      "wingo_flashsale_halfpage_300x600_de.png",
+      "wingo_flashsale_halfpage_300x600_en.png",
+      "wingo_flashsale_halfpage_300x600_fr.png",
+      "wingo_flashsale_halfpage_300x600_it.png",
+    ]);
+  });
 });
