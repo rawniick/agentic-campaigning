@@ -1,5 +1,9 @@
 import type { ReactElement } from "react";
 import type { BrandTokens } from "../../../lib/brand/loadTokens";
+import {
+  AiLabelOverlay,
+  type AiLabelConfig,
+} from "../../../lib/render/AiLabelOverlay";
 
 // Wingo Flash Sale — Landscape 1200x628.
 // Geteilt von Google Performance Max, Google Discovery / Demand Gen,
@@ -19,6 +23,7 @@ export interface FlashSaleLandscapeProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleLandscapeVariant;
+  aiLabel?: AiLabelConfig;
 }
 
 const WIDTH = 1200;
@@ -192,6 +197,7 @@ export function FlashSaleLandscape(props: FlashSaleLandscapeProps): ReactElement
     >
       {mainRow}
       {disclaimerBar}
+      {props.aiLabel && <AiLabelOverlay config={props.aiLabel} />}
     </div>
   );
 }

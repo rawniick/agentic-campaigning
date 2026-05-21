@@ -1,5 +1,9 @@
 import type { ReactElement } from "react";
 import type { BrandTokens } from "../../../lib/brand/loadTokens";
+import {
+  AiLabelOverlay,
+  type AiLabelConfig,
+} from "../../../lib/render/AiLabelOverlay";
 
 // Wingo Flash Sale — Billboard 970x250 (Wide Horizontal).
 // Aufteilung in einer Row: Hero links 380px, Content-Spalte rechts.
@@ -21,6 +25,7 @@ export interface FlashSaleBillboardProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleBillboardVariant;
+  aiLabel?: AiLabelConfig;
 }
 
 const WIDTH = 970;
@@ -202,6 +207,7 @@ export function FlashSaleBillboard(props: FlashSaleBillboardProps): ReactElement
     >
       {mainRow}
       {disclaimerBar}
+      {props.aiLabel && <AiLabelOverlay config={props.aiLabel} />}
     </div>
   );
 }

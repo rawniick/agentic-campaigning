@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import type { BrandTokens } from "../../lib/brand/loadTokens";
+import type { AiLabelConfig } from "../../lib/render/AiLabelOverlay";
 import { FlashSaleHalfpage } from "./flash_sale/FlashSaleHalfpage";
 import { FlashSaleRectangle } from "./flash_sale/FlashSaleRectangle";
 import { FlashSaleBillboard } from "./flash_sale/FlashSaleBillboard";
@@ -25,6 +26,9 @@ export interface TemplateProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: string;
+  // Pflicht bei hero.source === 'ai'. resolveAiLabelConfig liefert null wenn die
+  // Brand kein Label registriert hat — in dem Fall lassen Templates das Asset weg.
+  aiLabel?: AiLabelConfig;
 }
 
 export type TemplateComponent = (props: TemplateProps) => ReactElement;

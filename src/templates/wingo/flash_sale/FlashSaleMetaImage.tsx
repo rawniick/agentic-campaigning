@@ -1,5 +1,9 @@
 import type { ReactElement } from "react";
 import type { BrandTokens } from "../../../lib/brand/loadTokens";
+import {
+  AiLabelOverlay,
+  type AiLabelConfig,
+} from "../../../lib/render/AiLabelOverlay";
 
 // Wingo Flash Sale — Meta Image Ad 1080x1920 (Story-Format, 9:16 portrait).
 // Layout vertikal: Hero deckt obere 50% ab, dann Content-Block mit Brand + Copy.
@@ -20,6 +24,7 @@ export interface FlashSaleMetaImageProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleMetaImageVariant;
+  aiLabel?: AiLabelConfig;
 }
 
 const WIDTH = 1080;
@@ -165,6 +170,7 @@ export function FlashSaleMetaImage(props: FlashSaleMetaImageProps): ReactElement
     >
       {heroBlock}
       {contentOrder}
+      {props.aiLabel && <AiLabelOverlay config={props.aiLabel} />}
     </div>
   );
 }

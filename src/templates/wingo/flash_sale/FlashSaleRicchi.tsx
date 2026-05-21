@@ -1,5 +1,9 @@
 import type { ReactElement } from "react";
 import type { BrandTokens } from "../../../lib/brand/loadTokens";
+import {
+  AiLabelOverlay,
+  type AiLabelConfig,
+} from "../../../lib/render/AiLabelOverlay";
 
 // Wingo Flash Sale — Ricchi Ad 320x416 (DV360 Rich Media).
 // Vertikal-Layout aehnlich Halfpage aber kuerzer (ca. 4:5).
@@ -20,6 +24,7 @@ export interface FlashSaleRicchiProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleRicchiVariant;
+  aiLabel?: AiLabelConfig;
 }
 
 const WIDTH = 320;
@@ -152,6 +157,7 @@ export function FlashSaleRicchi(props: FlashSaleRicchiProps): ReactElement {
       }}
     >
       {order}
+      {props.aiLabel && <AiLabelOverlay config={props.aiLabel} />}
     </div>
   );
 }

@@ -1,5 +1,9 @@
 import type { ReactElement } from "react";
 import type { BrandTokens } from "../../../lib/brand/loadTokens";
+import {
+  AiLabelOverlay,
+  type AiLabelConfig,
+} from "../../../lib/render/AiLabelOverlay";
 
 // Wingo Flash Sale — Square 1200x1200 (SEA Ad Extension Picture).
 // Aspect 1:1. Hero top (~640px), Content unten mit grosser Type-Hierarchy.
@@ -17,6 +21,7 @@ export interface FlashSaleSquareProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleSquareVariant;
+  aiLabel?: AiLabelConfig;
 }
 
 const WIDTH = 1200;
@@ -153,6 +158,7 @@ export function FlashSaleSquare(props: FlashSaleSquareProps): ReactElement {
     >
       {heroBlock}
       {contentOrder}
+      {props.aiLabel && <AiLabelOverlay config={props.aiLabel} />}
     </div>
   );
 }

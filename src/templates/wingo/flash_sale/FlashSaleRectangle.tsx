@@ -1,5 +1,9 @@
 import type { ReactElement } from "react";
 import type { BrandTokens } from "../../../lib/brand/loadTokens";
+import {
+  AiLabelOverlay,
+  type AiLabelConfig,
+} from "../../../lib/render/AiLabelOverlay";
 
 // Wingo Flash Sale — Display Rectangle 300x250 (DV360 MPU).
 // Layout (column, top→bottom):
@@ -24,6 +28,7 @@ export interface FlashSaleRectangleProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleRectangleVariant;
+  aiLabel?: AiLabelConfig;
 }
 
 const WIDTH = 300;
@@ -160,6 +165,7 @@ export function FlashSaleRectangle(props: FlashSaleRectangleProps): ReactElement
       }}
     >
       {order}
+      {props.aiLabel && <AiLabelOverlay config={props.aiLabel} />}
     </div>
   );
 }

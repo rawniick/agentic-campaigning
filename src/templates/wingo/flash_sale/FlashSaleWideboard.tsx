@@ -1,5 +1,9 @@
 import type { ReactElement } from "react";
 import type { BrandTokens } from "../../../lib/brand/loadTokens";
+import {
+  AiLabelOverlay,
+  type AiLabelConfig,
+} from "../../../lib/render/AiLabelOverlay";
 
 // Wingo Flash Sale — Wideboard XL 994x500 (DV360).
 // Aspect ~2:1. Hero links 480px x 500, Content rechts mit groesserer Type-Hierarchy.
@@ -17,6 +21,7 @@ export interface FlashSaleWideboardProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleWideboardVariant;
+  aiLabel?: AiLabelConfig;
 }
 
 const WIDTH = 994;
@@ -190,6 +195,7 @@ export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement
     >
       {mainRow}
       {disclaimerBar}
+      {props.aiLabel && <AiLabelOverlay config={props.aiLabel} />}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { createAsset } from "../db/queries/assets";
 import { renderToPng as defaultRenderToPng } from "../render/renderToPng";
 import { transitionGate, type CampaignState } from "../state/transitionGate";
 import { runVisionQA, type VisionQAClient } from "../qa/runVisionQA";
+import { resolveAiLabelConfig } from "../aiLabel/resolveAiLabelConfig";
 import {
   findTemplate,
   type CampaignArt,
@@ -49,6 +50,7 @@ interface GateData {
   cta_label: string;
   disclaimer_text: string;
   hero_url: string;
+  hero_source: string;
   variant: string;
 }
 
@@ -83,6 +85,7 @@ async function loadGateDataPerLanguage(db: Db, campaignId: string): Promise<Gate
     selected_headline_idx: number;
     disclaimer_ids: string[];
     hero_url: string;
+    hero_source: string;
     variant: string;
   }>(
     `SELECT
@@ -90,6 +93,7 @@ async function loadGateDataPerLanguage(db: Db, campaignId: string): Promise<Gate
         cc.language, cc.headlines, cc.subline, cc.cta_label,
         cc.selected_headline_idx, cc.disclaimer_ids,
         ch.storage_url AS hero_url,
+        ch.source AS hero_source,
         cl.variant
        FROM campaigns c
        JOIN campaign_copy cc ON cc.campaign_id = c.id AND cc.is_approved = true
@@ -148,6 +152,7 @@ async function loadGateDataPerLanguage(db: Db, campaignId: string): Promise<Gate
       cta_label: row.cta_label,
       disclaimer_text,
       hero_url: row.hero_url,
+      hero_source: row.hero_source,
       variant: row.variant,
     };
   });
@@ -165,6 +170,14 @@ async function renderOneFormat(
   renderImpl: NonNullable<RunMultiplexInput["renderToPng"]>,
   visionClient: VisionQAClient | undefined
 ): Promise<MultiplexedAsset> {
+  // AI-Label-Pflicht (Brand-Compliance): nur bei source='ai' beziehen.
+  // Wenn die Brand kein Label registriert hat, gibt der Resolver null zurueck —
+  // Template laesst das Asset dann weg (gleicher Codepfad wie upload/library).
+  const aiLabel =
+    data.hero_source === "ai"
+      ? (await resolveAiLabelConfig(db, brandConfig.brand.id, format)) ?? undefined
+      : undefined;
+
   const jsx = React.createElement(component, {
     tokens: brandConfig.tokens,
     headline: data.headline,
@@ -176,6 +189,7 @@ async function renderOneFormat(
     heroImageUrl: data.hero_url,
     logoSrc: logoUrl,
     variant: data.variant,
+    aiLabel,
   });
 
   const png = await renderImpl(jsx, { width: format.width, height: format.height });

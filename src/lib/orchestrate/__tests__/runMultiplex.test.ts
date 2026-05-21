@@ -243,6 +243,89 @@ describe("runMultiplex", () => {
     expect(r.rows[0].status).toBe("failed");
   });
 
+  describe("AI-Label injection", () => {
+    beforeEach(async () => {
+      await db.query(`DELETE FROM ai_label_assets`);
+    });
+
+    it("passes aiLabel prop to templates when hero source is 'ai' and brand has a label asset", async () => {
+      await db.query(
+        `UPDATE campaign_hero SET source = 'ai' WHERE campaign_id = $1`,
+        [campaignId]
+      );
+      await db.query(
+        `INSERT INTO ai_label_assets (brand_id, storage_url, default_position)
+           VALUES ($1, 'https://example.com/ai-label.svg',
+                   '{"anchor":"bottom-right","offset":{"x":8,"y":8},"size":{"w":50,"h":16}}'::jsonb)`,
+        [wingoId]
+      );
+
+      const storage = createInMemoryStorage();
+      const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+      await runMultiplex(db, storage, {
+        campaignId,
+        brandConfig,
+        logoUrl: "memory://logo.svg",
+        renderToPng: renderSpy,
+      });
+
+      const jsx = renderSpy.mock.calls[0][0] as {
+        props: { aiLabel?: { src: string; position: { anchor: string } } };
+      };
+      expect(jsx.props.aiLabel?.src).toBe("https://example.com/ai-label.svg");
+      expect(jsx.props.aiLabel?.position.anchor).toBe("bottom-right");
+    });
+
+    it("does not pass aiLabel prop when hero source is 'upload'", async () => {
+      await db.query(
+        `INSERT INTO ai_label_assets (brand_id, storage_url, default_position)
+           VALUES ($1, 'https://example.com/ai-label.svg',
+                   '{"anchor":"bottom-right","offset":{"x":8,"y":8},"size":{"w":50,"h":16}}'::jsonb)`,
+        [wingoId]
+      );
+      // hero stays at default source='upload' from outer beforeEach
+
+      const storage = createInMemoryStorage();
+      const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+      await runMultiplex(db, storage, {
+        campaignId,
+        brandConfig,
+        logoUrl: "memory://logo.svg",
+        renderToPng: renderSpy,
+      });
+
+      const jsx = renderSpy.mock.calls[0][0] as {
+        props: { aiLabel?: unknown };
+      };
+      expect(jsx.props.aiLabel).toBeUndefined();
+    });
+
+    it("does not pass aiLabel prop when source is 'ai' but no label asset is registered", async () => {
+      await db.query(
+        `UPDATE campaign_hero SET source = 'ai' WHERE campaign_id = $1`,
+        [campaignId]
+      );
+      // no INSERT into ai_label_assets
+
+      const storage = createInMemoryStorage();
+      const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+      await runMultiplex(db, storage, {
+        campaignId,
+        brandConfig,
+        logoUrl: "memory://logo.svg",
+        renderToPng: renderSpy,
+      });
+
+      const jsx = renderSpy.mock.calls[0][0] as {
+        props: { aiLabel?: unknown };
+      };
+      expect(jsx.props.aiLabel).toBeUndefined();
+    });
+  });
+
   describe("multi-language", () => {
     beforeEach(async () => {
       // Add FR/IT/EN copies on top of the DE row inserted by the outer beforeEach

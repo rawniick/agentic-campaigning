@@ -1,5 +1,9 @@
 import type { ReactElement } from "react";
 import type { BrandTokens } from "../../../lib/brand/loadTokens";
+import {
+  AiLabelOverlay,
+  type AiLabelConfig,
+} from "../../../lib/render/AiLabelOverlay";
 
 // Wingo Flash Sale — Display Halfpage 300x600 (DV360)
 // Satori-kompatibel: ausschliesslich Inline-Styles. Layout-Variants:
@@ -20,6 +24,7 @@ export interface FlashSaleHalfpageProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleHalfpageVariant;
+  aiLabel?: AiLabelConfig;
 }
 
 const WIDTH = 300;
@@ -152,6 +157,7 @@ export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
       }}
     >
       {order}
+      {props.aiLabel && <AiLabelOverlay config={props.aiLabel} />}
     </div>
   );
 }

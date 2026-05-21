@@ -57,4 +57,28 @@ describe("FlashSaleRectangle (300x250)", () => {
     expect(html).toMatch(/width:\s*['"]?300/);
     expect(html).toMatch(/height:\s*['"]?250/);
   });
+
+  it("renders the AI-Label overlay when aiLabel prop is given", () => {
+    const html = renderToStaticMarkup(
+      <FlashSaleRectangle
+        {...baseProps}
+        aiLabel={{
+          src: "https://example.test/wingo-ai-label.svg",
+          position: {
+            anchor: "bottom-right",
+            offset: { x: 6, y: 6 },
+            size: { w: 40, h: 14 },
+          },
+        }}
+      />
+    );
+    expect(html).toContain('src="https://example.test/wingo-ai-label.svg"');
+    expect(html).toMatch(/right:\s*['"]?6/);
+    expect(html).toMatch(/bottom:\s*['"]?6/);
+  });
+
+  it("omits the AI-Label markup when aiLabel prop is absent", () => {
+    const html = renderToStaticMarkup(<FlashSaleRectangle {...baseProps} />);
+    expect(html).not.toContain("AI-generated content label");
+  });
 });
