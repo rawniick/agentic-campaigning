@@ -5,6 +5,11 @@ import type { BrandConfig } from "../brand/loadBrand";
 import { getV1Formats, type FormatSpec } from "../db/queries/format-specs";
 import { createAsset, recordFailedAsset } from "../db/queries/assets";
 import { renderToPng as defaultRenderToPng } from "../render/renderToPng";
+import {
+  resolveHeroSrc,
+  defaultFetchHeroBytes,
+  type FetchHeroBytesFn,
+} from "../render/resolveHeroSrc";
 import { transitionGate, type CampaignState } from "../state/transitionGate";
 import { runVisionQA, type VisionQAClient } from "../qa/runVisionQA";
 import { resolveAiLabelConfig } from "../aiLabel/resolveAiLabelConfig";
@@ -37,6 +42,9 @@ export interface RunMultiplexInput {
   };
   // Auto-Retry pro Asset gegen transiente Render-/Upload-Fehler. Default 2.
   maxRenderRetries?: number;
+  // Laedt Hero-Bytes fuer das serverseitige Einbetten als Data-URI (Satori fetcht
+  // keine Remote-URLs). Injizierbar fuer Tests; default = HTTP-Fetch.
+  fetchHeroBytes?: FetchHeroBytesFn;
 }
 
 export interface MultiplexedAsset {
@@ -239,7 +247,8 @@ async function renderOneFormat(
   logoUrl: string,
   renderImpl: NonNullable<RunMultiplexInput["renderToPng"]>,
   visionClient: VisionQAClient | undefined,
-  maxRetries: number
+  maxRetries: number,
+  heroSrc: string
 ): Promise<MultiplexedAsset> {
   // AI-Label-Pflicht (Brand-Compliance): nur bei source='ai' beziehen.
   // Wenn die Brand kein Label registriert hat, gibt der Resolver null zurueck —
@@ -249,6 +258,8 @@ async function renderOneFormat(
       ? (await resolveAiLabelConfig(db, brandConfig.brand.id, format)) ?? undefined
       : undefined;
 
+  // heroSrc ist bereits die eingebettete Data-URI (einmal pro Lauf aufgeloest, da
+  // alle 44 Assets denselben Hero teilen) — kein Fetch pro Format.
   const jsx = React.createElement(component, {
     tokens: brandConfig.tokens,
     headline: data.headline,
@@ -257,7 +268,7 @@ async function renderOneFormat(
     priceSuffix: data.price_suffix,
     ctaLabel: data.cta_label,
     disclaimer: data.disclaimer_text,
-    heroImageUrl: data.hero_url,
+    heroImageUrl: heroSrc,
     logoSrc: logoUrl,
     variant: data.variant,
     aiLabel,
@@ -348,6 +359,15 @@ export async function runMultiplex(
       throw new Error("Kein Hero ausgewaehlt — Gate 2 nicht abgeschlossen");
     }
 
+    // Hero EINMAL aufloesen + einbetten — alle 44 Assets teilen denselben Hero,
+    // also kein Fetch pro Format. Schlaegt das Einbetten fehl (Download/Nicht-Bild),
+    // faellt der ganze Lauf fail-loud (outer catch → state=failed), statt 44 blanke
+    // Hero-Assets als "fertig" auszuliefern (KO-Kriterium Brand-Konformitaet).
+    const heroSrc = await resolveHeroSrc(
+      dataPerLang[0].hero_url,
+      input.fetchHeroBytes ?? defaultFetchHeroBytes
+    );
+
     const kampagneArt = dataPerLang[0].kampagne_art;
     const v1Formats = await getV1Formats(db);
 
@@ -390,7 +410,8 @@ export async function runMultiplex(
           input.logoUrl,
           renderImpl,
           input.visionClient,
-          maxRetries
+          maxRetries,
+          heroSrc
         )
       )
     );
@@ -455,6 +476,7 @@ export interface RetryAssetInput {
   renderToPng?: RunMultiplexInput["renderToPng"];
   visionClient?: VisionQAClient;
   maxRenderRetries?: number;
+  fetchHeroBytes?: FetchHeroBytesFn;
 }
 
 // Re-rendert genau EIN Asset (Format x Sprache) — fuer Einzel-Retry nach
@@ -482,6 +504,11 @@ export async function retryAsset(
   const component = findTemplate(format.code, data.kampagne_art);
   if (!component) throw new Error(`Kein Template fuer Format ${format.code}`);
 
+  const heroSrc = await resolveHeroSrc(
+    data.hero_url,
+    input.fetchHeroBytes ?? defaultFetchHeroBytes
+  );
+
   return renderOneFormat(
     db,
     storage,
@@ -493,6 +520,7 @@ export async function retryAsset(
     input.logoUrl,
     renderImpl,
     input.visionClient,
-    input.maxRenderRetries ?? 2
+    input.maxRenderRetries ?? 2,
+    heroSrc
   );
 }

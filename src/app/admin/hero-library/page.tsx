@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import {
   uploadHeroToLibraryAction,
   deleteHeroLibraryEntryAction,
+  seedHeroLibraryFromSamplesAction,
 } from "./_actions";
 
 export const dynamic = "force-dynamic";
@@ -26,12 +27,19 @@ export default async function HeroLibraryPage() {
             Vorschlaege hier raus.
           </p>
         </div>
-        <Link
-          href="/"
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          ← Dashboard
-        </Link>
+        <div className="flex items-center gap-3">
+          <form action={seedHeroLibraryFromSamplesAction}>
+            <Button type="submit" variant="outline" size="sm">
+              Aus samples/ importieren
+            </Button>
+          </form>
+          <Link
+            href="/"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            ← Dashboard
+          </Link>
+        </div>
       </div>
 
       <section className="mb-10 rounded-md border bg-card p-6 shadow-sm">

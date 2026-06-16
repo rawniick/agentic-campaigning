@@ -2,6 +2,7 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import path from "path";
+import sharp from "sharp";
 import { fileURLToPath } from "url";
 import type { PGlite } from "@electric-sql/pglite";
 import { createTestDb } from "../../db/__tests__/fixtures/createTestDb";
@@ -140,6 +141,67 @@ describe("runMultiplex", () => {
     );
     expect(dbAssets.rows).toHaveLength(expected.length);
     expect(dbAssets.rows[0].language).toBe("de");
+  });
+
+  it("embeds the hero ONCE as a PNG data URI before rendering (hoisted, no remote URL reaches the renderer)", async () => {
+    const storage = createInMemoryStorage();
+    const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+    const heroPng = await sharp({
+      create: { width: 16, height: 16, channels: 3, background: { r: 1, g: 2, b: 3 } },
+    })
+      .png()
+      .toBuffer();
+    const fakeHeroBytes = vi.fn().mockResolvedValue(heroPng);
+
+    // Hero auf eine echte HTTPS-Storage-URL setzen (Produktionsfall, der eingebettet wird).
+    await db.query(
+      `UPDATE campaign_hero SET storage_url = 'https://storage.example/hero.jpg' WHERE campaign_id = $1`,
+      [campaignId]
+    );
+
+    await runMultiplex(db, storage, {
+      campaignId,
+      brandConfig,
+      logoUrl: "memory://logo.svg",
+      renderToPng: renderSpy,
+      fetchHeroBytes: fakeHeroBytes,
+    });
+
+    const jsx = renderSpy.mock.calls[0][0] as { props: { heroImageUrl: string } };
+    expect(jsx.props.heroImageUrl).toMatch(/^data:image\/png;base64,/);
+    expect(jsx.props.heroImageUrl).not.toContain("storage.example");
+    // EINMAL geladen, obwohl mehrere Assets gerendert werden (Hero ist fuer alle gleich).
+    expect(fakeHeroBytes).toHaveBeenCalledTimes(1);
+    expect(fakeHeroBytes).toHaveBeenCalledWith("https://storage.example/hero.jpg");
+  });
+
+  it("fails the whole run (fail-loud) when the hero cannot be embedded — never ships blank-hero assets", async () => {
+    const storage = createInMemoryStorage();
+    const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+    const brokenHeroBytes = vi.fn().mockRejectedValue(new Error("download 404"));
+
+    await db.query(
+      `UPDATE campaign_hero SET storage_url = 'https://storage.example/missing.jpg' WHERE campaign_id = $1`,
+      [campaignId]
+    );
+
+    await expect(
+      runMultiplex(db, storage, {
+        campaignId,
+        brandConfig,
+        logoUrl: "memory://logo.svg",
+        renderToPng: renderSpy,
+        fetchHeroBytes: brokenHeroBytes,
+      })
+    ).rejects.toThrow();
+
+    // Bricht VOR dem Fan-out ab → kein Render, kein Asset.
+    expect(renderSpy).not.toHaveBeenCalled();
+    const status = await db.query<{ status: string }>(
+      `SELECT status FROM campaigns WHERE id = $1`,
+      [campaignId]
+    );
+    expect(status.rows[0].status).toBe("failed");
   });
 
   it("passes selected headline, price, disclaimer text, and layout variant verbatim into the rendered template", async () => {

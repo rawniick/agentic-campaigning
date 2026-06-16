@@ -1,11 +1,13 @@
 "use server";
 
+import path from "path";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/lib/db/server";
 import { getActiveBrandConfig } from "@/lib/brand/server";
 import { createSupabaseStorage } from "@/lib/storage/supabaseStorage";
 import { uploadToHeroLibrary } from "@/lib/heroLibrary/uploadToHeroLibrary";
+import { seedHeroLibraryFromSamples } from "@/lib/heroLibrary/seedHeroLibraryFromSamples";
 import { deleteHeroLibraryEntry } from "@/lib/db/queries/hero-library";
 
 function parseTags(input: FormDataEntryValue | null): string[] {
@@ -49,6 +51,25 @@ export async function uploadHeroToLibraryAction(formData: FormData) {
     seasons,
   });
 
+  revalidatePath("/admin/hero-library");
+}
+
+// Importiert die in brand-assets/<slug>/samples/ abgelegten Bildwelt-Bilder als
+// Hero-Library-Eintraege (idempotent). Marketer-Trigger fuer den Bootstrap, ohne
+// jedes Bild einzeln hochladen zu muessen.
+export async function seedHeroLibraryFromSamplesAction() {
+  const brand = await getActiveBrandConfig();
+  const samplesDir = path.join(
+    process.cwd(),
+    "brand-assets",
+    brand.brand.slug,
+    "samples"
+  );
+  await seedHeroLibraryFromSamples(getDb(), createSupabaseStorage(), {
+    brand_id: brand.brand.id,
+    brandSlug: brand.brand.slug,
+    samplesDir,
+  });
   revalidatePath("/admin/hero-library");
 }
 
