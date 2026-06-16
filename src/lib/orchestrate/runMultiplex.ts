@@ -10,6 +10,7 @@ import {
   defaultFetchHeroBytes,
   type FetchHeroBytesFn,
 } from "../render/resolveHeroSrc";
+import { checkBrandConformity } from "../qa/checkBrandConformity";
 import { transitionGate, type CampaignState } from "../state/transitionGate";
 import { runVisionQA, type VisionQAClient } from "../qa/runVisionQA";
 import { resolveAiLabelConfig } from "../aiLabel/resolveAiLabelConfig";
@@ -45,6 +46,9 @@ export interface RunMultiplexInput {
   // Laedt Hero-Bytes fuer das serverseitige Einbetten als Data-URI (Satori fetcht
   // keine Remote-URLs). Injizierbar fuer Tests; default = HTTP-Fetch.
   fetchHeroBytes?: FetchHeroBytesFn;
+  // true, wenn der Render auf den Interim-Logo-Platzhalter zurueckfiel (kein echtes
+  // Wingo-Lockup). Geht in den Konformitaets-Gate ein. Default false.
+  logoIsPlaceholder?: boolean;
 }
 
 export interface MultiplexedAsset {
@@ -248,7 +252,8 @@ async function renderOneFormat(
   renderImpl: NonNullable<RunMultiplexInput["renderToPng"]>,
   visionClient: VisionQAClient | undefined,
   maxRetries: number,
-  heroSrc: string
+  heroSrc: string,
+  logoIsPlaceholder: boolean
 ): Promise<MultiplexedAsset> {
   // AI-Label-Pflicht (Brand-Compliance): nur bei source='ai' beziehen.
   // Wenn die Brand kein Label registriert hat, gibt der Resolver null zurueck —
@@ -287,6 +292,17 @@ async function renderOneFormat(
     return { png, url };
   }, maxRetries);
 
+  // Deterministischer Brand-Konformitaets-Gate: persistiert pro Asset, ob es
+  // ausgeliefert werden darf (echtes Logo, korrekte Dimensionen, Brand-Farbe).
+  // Der ZIP-Export blockt conformity_pass=false.
+  const conformity = await checkBrandConformity({
+    pngBytes: png,
+    expectedWidth: format.width,
+    expectedHeight: format.height,
+    brandPrimaryHex: brandConfig.tokens.colors.primary.hex,
+    logoIsPlaceholder,
+  });
+
   const asset = await createAsset(db, {
     campaign_id: campaignId,
     format_id: format.id,
@@ -294,6 +310,8 @@ async function renderOneFormat(
     storage_url: url,
     file_size_bytes: png.length,
     mime_type: "image/png",
+    conformity_pass: conformity.pass,
+    conformity_details: { checks: conformity.checks },
   });
 
   // Vision-QA ist best-effort: ein QA-Fehler darf das Asset nicht failen.
@@ -411,7 +429,8 @@ export async function runMultiplex(
           renderImpl,
           input.visionClient,
           maxRetries,
-          heroSrc
+          heroSrc,
+          input.logoIsPlaceholder ?? false
         )
       )
     );
@@ -477,6 +496,7 @@ export interface RetryAssetInput {
   visionClient?: VisionQAClient;
   maxRenderRetries?: number;
   fetchHeroBytes?: FetchHeroBytesFn;
+  logoIsPlaceholder?: boolean;
 }
 
 // Re-rendert genau EIN Asset (Format x Sprache) — fuer Einzel-Retry nach
@@ -521,6 +541,7 @@ export async function retryAsset(
     renderImpl,
     input.visionClient,
     input.maxRenderRetries ?? 2,
-    heroSrc
+    heroSrc,
+    input.logoIsPlaceholder ?? false
   );
 }

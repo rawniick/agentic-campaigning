@@ -14,6 +14,10 @@ export interface Asset {
   vision_qa_score: number | null;
   vision_qa_details_json: Record<string, unknown> | null;
   position_overrides_json: Record<string, unknown> | null;
+  // Deterministischer Brand-Konformitaets-Gate (Migration 016).
+  // false → nicht in den finalen ZIP-Export; null → noch nicht geprueft.
+  conformity_pass: boolean | null;
+  conformity_details_json: Record<string, unknown> | null;
 }
 
 export interface CreateAssetInput {
@@ -24,6 +28,8 @@ export interface CreateAssetInput {
   file_size_bytes?: number;
   mime_type?: string;
   status?: string;
+  conformity_pass?: boolean | null;
+  conformity_details?: Record<string, unknown> | null;
 }
 
 function normalize(row: Record<string, unknown>): Asset {
@@ -43,14 +49,20 @@ export async function createAsset(
   // zurueckgesetzt.
   const res = await db.query<Record<string, unknown>>(
     `INSERT INTO assets
-       (campaign_id, format_id, language, storage_url, file_size_bytes, mime_type, status, render_error)
-       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'rendered'), NULL)
+       (campaign_id, format_id, language, storage_url, file_size_bytes, mime_type, status, render_error, conformity_pass, conformity_details_json)
+       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'rendered'), NULL, $8, $9::jsonb)
        ON CONFLICT (campaign_id, format_id, language) DO UPDATE
          SET storage_url = EXCLUDED.storage_url,
              file_size_bytes = EXCLUDED.file_size_bytes,
              mime_type = EXCLUDED.mime_type,
              status = EXCLUDED.status,
              render_error = NULL,
+             -- COALESCE: ein Re-Insert OHNE Konformitaets-Input (EXCLUDED=NULL) darf
+             -- ein vorhandenes Urteil nicht auf NULL zuruecksetzen (sonst wuerde es
+             -- via 'IS NOT FALSE' wieder exportierbar). Re-Render uebergibt immer
+             -- einen Wert und ueberschreibt dadurch korrekt.
+             conformity_pass = COALESCE(EXCLUDED.conformity_pass, assets.conformity_pass),
+             conformity_details_json = COALESCE(EXCLUDED.conformity_details_json, assets.conformity_details_json),
              updated_at = now()
        RETURNING *`,
     [
@@ -61,6 +73,8 @@ export async function createAsset(
       input.file_size_bytes ?? null,
       input.mime_type ?? null,
       input.status ?? null,
+      input.conformity_pass ?? null,
+      input.conformity_details ? JSON.stringify(input.conformity_details) : null,
     ]
   );
   return normalize(res.rows[0]);

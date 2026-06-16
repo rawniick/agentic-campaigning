@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/lib/db/server";
 import { getActiveBrandConfig } from "@/lib/brand/server";
-import { resolveLogoSrc } from "@/lib/brand/resolveLogoSrc";
+import { resolveLogoSrc, logoIsPlaceholder } from "@/lib/brand/resolveLogoSrc";
 import { createSupabaseStorage } from "@/lib/storage/supabaseStorage";
 import { approveCopy } from "@/lib/gates/approveCopy";
 import { createClaudeTranslator } from "@/lib/copy/claudeTranslator";
@@ -125,6 +125,10 @@ export async function finalRenderGateAction(formData: FormData) {
     campaignId,
     brandConfig: brand,
     logoUrl,
+    // Fliesst in den deterministischen Konformitaets-Gate: solange das echte
+    // Wingo-Lockup fehlt, sind die Assets nicht brand-konform und werden vom
+    // ZIP-Export geblockt (KO-Kriterium).
+    logoIsPlaceholder: logoIsPlaceholder(brand.brand.slug),
     translate: {
       passthroughTerms: brand.glossar.passthrough_terms,
       llm: createClaudeTranslator(),
@@ -160,6 +164,7 @@ export async function retryAssetGateAction(formData: FormData) {
     campaignId,
     brandConfig: brand,
     logoUrl,
+    logoIsPlaceholder: logoIsPlaceholder(brand.brand.slug),
     formatId,
     language,
     visionClient: createClaudeVisionClient(),

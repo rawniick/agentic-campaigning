@@ -58,6 +58,30 @@ describe("assets CRUD", () => {
     if (db) await db.close();
   });
 
+  it("preserves a prior conformity verdict on re-insert without conformity input (COALESCE)", async () => {
+    await createAsset(db, {
+      campaign_id: campaignId,
+      format_id: formatId,
+      language: "de",
+      storage_url: "memory://a1.png",
+      conformity_pass: true,
+      conformity_details: { checks: [] },
+    });
+    // Re-Insert (Upsert auf gleiche Format x Sprache) OHNE Konformitaet darf das
+    // true nicht auf NULL kippen — sonst waere das Asset wieder exportierbar.
+    await createAsset(db, {
+      campaign_id: campaignId,
+      format_id: formatId,
+      language: "de",
+      storage_url: "memory://a2.png",
+    });
+
+    const rows = await getAssetsForCampaign(db, campaignId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].conformity_pass).toBe(true);
+    expect(rows[0].storage_url).toBe("memory://a2.png");
+  });
+
   it("creates an asset row with the storage URL and metadata", async () => {
     const asset = await createAsset(db, {
       campaign_id: campaignId,

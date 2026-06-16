@@ -60,6 +60,7 @@ interface Props {
     language: string;
     status: string;
     vision_qa_score: number | null;
+    conformity_pass: boolean | null;
     render_error: string | null;
     format_id: string;
   }>;
@@ -78,8 +79,10 @@ const VISION_BADGE_CLASS: Record<string, string> = {
 // Sortier-Rang: Probleme zuerst (failed -> rot -> gelb -> gruen -> unbewertet).
 function assetSeverity(a: GalleryAsset): number {
   if (a.status === "failed") return 0;
+  // Brand-nicht-konform (vom Export geblockt) gleich nach den Render-Fehlern.
+  if (a.conformity_pass === false) return 1;
   const c = visionBadgeColor(a.vision_qa_score);
-  return c === "red" ? 1 : c === "yellow" ? 2 : c === "green" ? 3 : 4;
+  return c === "red" ? 2 : c === "yellow" ? 3 : c === "green" ? 4 : 5;
 }
 
 function VisionBadge({ score }: { score: number | null }) {
@@ -90,6 +93,21 @@ function VisionBadge({ score }: { score: number | null }) {
       className={`rounded px-2 py-0.5 text-xs font-medium ${VISION_BADGE_CLASS[color]}`}
     >
       {label}
+    </span>
+  );
+}
+
+// Harter, deterministischer Brand-Konformitaets-Gate. false = vom finalen ZIP-Export
+// ausgeschlossen (KO-Kriterium); null = noch nicht geprueft.
+function ConformityBadge({ pass }: { pass: boolean | null }) {
+  if (pass === null) return null;
+  return pass ? (
+    <span className="rounded bg-green-600 px-2 py-0.5 text-xs font-medium text-white">
+      Konform
+    </span>
+  ) : (
+    <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-medium text-white">
+      Nicht konform
     </span>
   );
 }
@@ -407,9 +425,18 @@ export function GateView({
                                 Fehlgeschlagen
                               </span>
                             ) : (
-                              <VisionBadge score={a.vision_qa_score} />
+                              <div className="flex items-center gap-1">
+                                <ConformityBadge pass={a.conformity_pass} />
+                                <VisionBadge score={a.vision_qa_score} />
+                              </div>
                             )}
                           </div>
+                          {a.status !== "failed" && a.conformity_pass === false && (
+                            <p className="mb-2 text-xs text-red-600">
+                              Nicht brand-konform — vom finalen ZIP-Export
+                              ausgeschlossen.
+                            </p>
+                          )}
                           {a.status === "failed" ? (
                             <div className="space-y-2">
                               <p className="text-xs text-red-600">

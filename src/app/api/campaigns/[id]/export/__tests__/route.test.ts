@@ -7,10 +7,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/db/server", () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock("@/lib/export/exportCampaignZip", () => ({
   exportCampaignZip: vi.fn(),
+  EmptyExportError: class EmptyExportError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "EmptyExportError";
+    }
+  },
 }));
 
 import { GET } from "../route";
-import { exportCampaignZip } from "@/lib/export/exportCampaignZip";
+import {
+  exportCampaignZip,
+  EmptyExportError,
+} from "@/lib/export/exportCampaignZip";
 
 const zipMock = exportCampaignZip as unknown as ReturnType<typeof vi.fn>;
 const VALID_UUID = "11111111-1111-4111-8111-111111111111";
@@ -45,6 +54,18 @@ describe("GET /api/campaigns/[id]/export", () => {
     expect(body.error).toBe("ZIP-Export fehlgeschlagen");
     expect(body.details).toBeUndefined();
     expect(JSON.stringify(body)).not.toContain("secret-host");
+  });
+
+  it("returns 422 with a clear message when there is nothing to export", async () => {
+    zipMock.mockRejectedValueOnce(
+      new EmptyExportError(
+        "Keine exportierbaren Assets — alle brand-nicht-konform. Siehe Gallery."
+      )
+    );
+    const res = await call(VALID_UUID);
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toMatch(/Keine exportierbaren Assets/);
   });
 
   it("returns the zip with a filename on success", async () => {

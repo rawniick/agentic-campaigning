@@ -204,6 +204,60 @@ describe("runMultiplex", () => {
     expect(status.rows[0].status).toBe("failed");
   });
 
+  // Erzeugt einen Renderer, der ein echtes PNG der angeforderten Groesse in der
+  // Brand-Primaerfarbe liefert (Dimensionen + Brand-Farbe-Check bestehen).
+  function conformantRenderer() {
+    const hex = brandConfig.tokens.colors.primary.hex.replace("#", "");
+    const rgb = {
+      r: parseInt(hex.slice(0, 2), 16),
+      g: parseInt(hex.slice(2, 4), 16),
+      b: parseInt(hex.slice(4, 6), 16),
+    };
+    return vi.fn(async (_node: unknown, opts: { width: number; height: number }) =>
+      sharp({ create: { width: opts.width, height: opts.height, channels: 3, background: rgb } })
+        .png()
+        .toBuffer()
+    );
+  }
+
+  it("persists a passing conformity gate when the logo is real and the render is conformant", async () => {
+    const storage = createInMemoryStorage();
+
+    await runMultiplex(db, storage, {
+      campaignId,
+      brandConfig,
+      logoUrl: "memory://logo.svg",
+      renderToPng: conformantRenderer(),
+      logoIsPlaceholder: false,
+    });
+
+    const rows = await db.query<{ conformity_pass: boolean | null }>(
+      `SELECT conformity_pass FROM assets WHERE campaign_id = $1`,
+      [campaignId]
+    );
+    expect(rows.rows.length).toBeGreaterThan(0);
+    expect(rows.rows.every((r) => r.conformity_pass === true)).toBe(true);
+  });
+
+  it("fails the conformity gate (blocks export) when the logo is a placeholder", async () => {
+    const storage = createInMemoryStorage();
+
+    await runMultiplex(db, storage, {
+      campaignId,
+      brandConfig,
+      logoUrl: "memory://logo.svg",
+      renderToPng: conformantRenderer(),
+      logoIsPlaceholder: true,
+    });
+
+    const rows = await db.query<{ conformity_pass: boolean | null }>(
+      `SELECT conformity_pass FROM assets WHERE campaign_id = $1`,
+      [campaignId]
+    );
+    expect(rows.rows.length).toBeGreaterThan(0);
+    expect(rows.rows.every((r) => r.conformity_pass === false)).toBe(true);
+  });
+
   it("passes selected headline, price, disclaimer text, and layout variant verbatim into the rendered template", async () => {
     const storage = createInMemoryStorage();
     const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));

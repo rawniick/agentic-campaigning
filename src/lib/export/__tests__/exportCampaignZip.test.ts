@@ -7,7 +7,7 @@ import { createTestDb } from "../../db/__tests__/fixtures/createTestDb";
 import { createInMemoryStorage } from "../../storage/inMemoryStorage";
 import { createCampaign } from "../../db/queries/campaigns";
 import { createAsset, recordFailedAsset } from "../../db/queries/assets";
-import { exportCampaignZip } from "../exportCampaignZip";
+import { exportCampaignZip, EmptyExportError } from "../exportCampaignZip";
 import type { Brief } from "../../schemas/brief";
 
 const BRIEF: Brief = {
@@ -176,5 +176,66 @@ describe("exportCampaignZip", () => {
     const archive = new AdmZip(zipBuf);
     const names = archive.getEntries().map((e) => e.entryName).sort();
     expect(names).toEqual(["wingo_flashsale_halfpage_300x600_de.png"]);
+  });
+
+  // KO-Gate: brand-nicht-konforme Assets (conformity_pass=false) duerfen NICHT in
+  // den finalen Export — z.B. mit Platzhalter-Logo gerenderte Assets.
+  it("excludes brand-non-conform assets (conformity_pass=false) from the final ZIP", async () => {
+    const storage = createInMemoryStorage();
+
+    const okBytes = Buffer.from("HP-OK");
+    const badBytes = Buffer.from("BB-NON-CONFORM");
+    const okUrl = (await storage.upload("hp-ok.png", okBytes, "image/png")).url;
+    const badUrl = (await storage.upload("bb-bad.png", badBytes, "image/png")).url;
+
+    await createAsset(db, {
+      campaign_id: campaignId,
+      format_id: halfpageFormatId,
+      language: "de",
+      storage_url: okUrl,
+      file_size_bytes: okBytes.length,
+      mime_type: "image/png",
+      conformity_pass: true,
+    });
+    await createAsset(db, {
+      campaign_id: campaignId,
+      format_id: billboardFormatId,
+      language: "de",
+      storage_url: badUrl,
+      file_size_bytes: badBytes.length,
+      mime_type: "image/png",
+      conformity_pass: false,
+    });
+
+    const zipBuf = await exportCampaignZip(db, campaignId, async (u) => {
+      const key = u.replace("memory://", "");
+      const bytes = storage.read(key);
+      if (!bytes) throw new Error(`Missing: ${key}`);
+      return bytes;
+    });
+
+    const archive = new AdmZip(zipBuf);
+    const names = archive.getEntries().map((e) => e.entryName).sort();
+    expect(names).toEqual(["wingo_flashsale_halfpage_300x600_de.png"]);
+  });
+
+  // Statt eines verwirrenden leeren 200-ZIP: ein distinkter Fehler, wenn alles
+  // brand-nicht-konform (oder noch nichts gerendert) ist.
+  it("throws EmptyExportError when no deliverable assets exist (e.g. all non-conform)", async () => {
+    const storage = createInMemoryStorage();
+    const { url } = await storage.upload("bad.png", Buffer.from("X"), "image/png");
+    await createAsset(db, {
+      campaign_id: campaignId,
+      format_id: halfpageFormatId,
+      language: "de",
+      storage_url: url,
+      file_size_bytes: 1,
+      mime_type: "image/png",
+      conformity_pass: false,
+    });
+
+    await expect(
+      exportCampaignZip(db, campaignId, async () => Buffer.from("X"))
+    ).rejects.toThrow(EmptyExportError);
   });
 });

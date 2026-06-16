@@ -5,6 +5,15 @@ import { buildAssetZipName } from "./zipNaming";
 
 export type FetchAssetBytesFn = (storageUrl: string) => Promise<Buffer>;
 
+// Kein einziges exportierbares (brand-konformes, gerendertes) Asset. Distinkt, damit
+// die Route eine klare 422-Meldung liefern kann statt eines leeren 200-ZIP-Downloads.
+export class EmptyExportError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EmptyExportError";
+  }
+}
+
 interface JoinedAssetRow {
   storage_url: string;
   language: string;
@@ -54,9 +63,22 @@ export async function exportCampaignZip(
         -- NULL-URL in fetch() und der ganze ZIP-Download crasht (Promise.all).
         AND a.status <> 'failed'
         AND a.storage_url IS NOT NULL
+        -- KO-Gate: brand-nicht-konforme Assets (Platzhalter-Logo, falsche Dimensionen,
+        -- Brand-Farbe fehlt) gehoeren NICHT in den finalen Export. conformity_pass=NULL
+        -- (Legacy/ungeprueft) bleibt zugelassen; nur explizit false wird geblockt.
+        AND a.conformity_pass IS NOT FALSE
       ORDER BY fs.format_bezeichnung, a.language`,
     [campaignId]
   );
+
+  // Leeres Ergebnis NIE als (valides) leeres ZIP ausliefern — sonst laedt der
+  // Marketer eine 0-Datei-ZIP ohne zu wissen warum. Haeufigster Fall: alle Assets
+  // wegen fehlendem echten Logo brand-nicht-konform (conformity_pass=false).
+  if (res.rows.length === 0) {
+    throw new EmptyExportError(
+      "Keine exportierbaren Assets — entweder noch nicht gerendert, oder alle brand-nicht-konform (z.B. Platzhalter-Logo). Siehe Gallery."
+    );
+  }
 
   const entries: CampaignZipEntry[] = await Promise.all(
     res.rows.map(async (row) => {

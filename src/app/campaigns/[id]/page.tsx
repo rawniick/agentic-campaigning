@@ -93,6 +93,7 @@ export default async function CampaignDetailPage({ params }: PageProps) {
             language: a.language,
             status: a.status,
             vision_qa_score: a.vision_qa_score,
+            conformity_pass: a.conformity_pass,
             render_error: a.render_error,
             format_id: a.format_id,
           }))}

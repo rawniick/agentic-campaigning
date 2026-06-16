@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db/server";
-import { exportCampaignZip } from "@/lib/export/exportCampaignZip";
+import { exportCampaignZip, EmptyExportError } from "@/lib/export/exportCampaignZip";
 import { fetchAssetBytesFromUrl } from "@/lib/export/fetchAssetBytes";
 
 // archiver (in exportCampaignZip) ist Node-only — kein Edge-Runtime.
@@ -43,6 +43,15 @@ export async function GET(
       },
     });
   } catch (e) {
+    // Leerer Export ist ein erwarteter Zustand (z.B. Platzhalter-Logo blockt alle
+    // Assets) — klare 422-Meldung statt generischem 500. Die Message ist
+    // bewusst nutzerfreundlich und enthaelt keine internen Details.
+    if (e instanceof EmptyExportError) {
+      return new Response(JSON.stringify({ error: e.message }), {
+        status: 422,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     // Interne Fehlerdetails (DB-/Storage-URLs, Treiber-Internals) nur
     // serverseitig loggen — nicht an den Client zurueckgeben.
     console.error(
