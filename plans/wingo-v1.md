@@ -222,6 +222,83 @@ Hero-Library als CRUD inkl. Admin-Page mit Tags (Produkt-Kategorie + Lifestyle +
 
 ---
 
+## Phase 5b: Verdrahtung zur brand-konformen 44-Asset-Pipeline
+
+> Eingeschoben 2026-05-29 nach Grilling. Befund: Multiplexer, Übersetzung, ZIP,
+> Vision-QA und AI-Label sind **gebaut + unit-getestet, aber nicht im Live-Flow
+> verdrahtet** ("built, not wired"). Der Live-Render produziert 1 DE-Halfpage statt
+> 44 Assets. Dieser Sprint schliesst die Lücke. Entscheidungs-Leitlinie: **bester
+> Output hat höchste Prio** (über Speed/Aufwand/Kosten).
+
+### Definition of Done
+
+Ein Brief läuft end-to-end durch und liefert **44 Assets (11 Formate × DE/FR/IT/EN)
+mit echtem Wingo-Logo und sichtbarem Vision-QA-Score** als frisch gezipptes Download.
+Partial-success-robust, re-open-sicher, keine stummen Fehlschläge.
+
+### What to build (in Abhängigkeits-Reihenfolge)
+
+1. **Übersetzungs-Glue** (Vorbedingung für 44): Glossar-Loader (`glossar.json.passthrough_terms`),
+   Translator-Adapter (`buildTranslatorPrompt` + `callClaude` → `TranslateLLMFn`),
+   `approveCopyGateAction` reicht `translateOptions` durch.
+2. **Multiplexer robust + an Gate 4**: Translate-if-missing (alle 4 Sprachen sichern,
+   fail-loud statt stumm-11), Idempotenz (`DELETE FROM assets` vor Lauf), Partial-success
+   (per-Asset try/catch + Auto-Retry 1–2×, Fehler-Badge), Hero-Guard, `finalRenderGateAction`
+   → `runMultiplex` statt `finalRender`.
+3. **Logo-Resolver**: `resolveLogoSrc()` liest `brand-assets/wingo/logos/wingo-lockup@3x.png`
+   → base64-Data-URL (Template-Vertrag `logoSrc` unverändert), `placehold.co` raus.
+4. **Vision-QA-Adapter**: `claudeVisionClient.ts` neu (Anthropic SDK Image-Blocks, da
+   `callClaude` text-only) → `VisionQAClient`, an `runMultiplex` übergeben, best-effort
+   (QA-Fehler failt Asset nicht), Score+Badge pro Asset, Mensch-gated (kein Hard-Gate).
+5. **ZIP-Auslieferung**: erste API-Route `GET /api/campaigns/[id]/export` → `exportCampaignZip`
+   mit parallelem Storage-Fetch + `Content-Disposition`, ZIP-Button in `GateView` (frisch, nie stale).
+6. **UI-Schliff**: Sprach-Tabs/Filter + Vision-Badges + Fehler-Badges/Retry in der Gallery.
+
+### Acceptance criteria
+
+- [ ] `glossar.json.passthrough_terms` wird programmatisch geladen und an die Übersetzung gegeben
+- [ ] `approveCopyGateAction` löst FR/IT/EN-Übersetzung aus (best-effort bei Gate-1)
+- [ ] `runMultiplex` sichert vor dem Render alle 4 Zielsprachen (übersetzt fehlende nach, fail-loud wenn unmöglich)
+- [ ] Re-Run von `runMultiplex` erzeugt keine Duplikate (DELETE-before-render)
+- [ ] Einzelner fehlgeschlagener Asset-Render killt nicht alle 44 (per-Asset try/catch + Auto-Retry); `state=done` auch bei Teilerfolg
+- [ ] `finalRenderGateAction` ruft `runMultiplex` (44 Assets) statt `finalRender` (1 Asset)
+- [ ] Echtes Wingo-Logo via `resolveLogoSrc()` als Data-URL im Render; kein `placehold.co` mehr im src/
+- [ ] `claudeVisionClient` sendet Image-Blocks; Vision-QA-Score + Badge pro Asset in der Gallery sichtbar
+- [ ] Vision-QA ist best-effort: ein QA-Fehler entfernt kein Asset aus dem ZIP
+- [ ] `GET /api/campaigns/[id]/export` liefert ZIP mit 44 PNGs (frisch, parallel gefetcht), Download-Button in der Gallery
+- [ ] Gallery hat Sprach-Filter + Vision-Badges + Retry für fehlgeschlagene Assets
+- [ ] E2E: Brief → ZIP mit 44 Files (fängt die "grün getestet ≠ funktioniert"-Lücke)
+
+### Explizit NICHT in 5b (Folge-Sprint)
+
+AI-Bild-Generierung (Provider-Router) → erst danach ist **AI-Label** auslösbar (triggert nur
+bei `hero_source='ai'`; `ai-label/`-Ordner + `ai_label_position`-Seed + `ai_label_assets` leer).
+Echter Embedding-Provider + Backfill. Vision-QA Hard-Gate. Drag-UI/Per-Asset-Chat (Phase 6).
+
+### Blocker / braucht Nick
+
+- **1 transparentes Wingo-Lockup-PNG** (hochauflösend ~3×) → `brand-assets/wingo/logos/wingo-lockup@3x.png`.
+  Bis dahin Interim-PNG aus `tokens.json`-Farben (kein harter Blocker).
+- `ANTHROPIC_API_KEY` gesetzt (für 44 Vision-Calls).
+
+### Umsetzungs-Status 2026-05-29
+
+**Implementiert + getestet (195 Tests grün, tsc + eslint clean):**
+- Pakete 1–6 komplett: Glossar-Loader + Translator-Adapter, Gate-1-Übersetzung,
+  Multiplexer (translate-if-missing, Idempotenz-DELETE + createAsset-Upsert,
+  partial-success + Auto-Retry, Hero-Guard) an Gate 4, Logo-Resolver (PNG-Data-URL),
+  Claude-Vision-Adapter (best-effort), ZIP-Route `/api/campaigns/[id]/export` + Button,
+  Gallery (Sprach-Filter, Vision-Badges, Fehler-Karte + Einzel-Retry).
+- Migration `015_assets_partial_success.sql` (storage_url nullable + render_error).
+
+**Offen / nicht in diesem Sprint:**
+- Echtes Wingo-Lockup-PNG von Nick (Interim aktiv).
+- Migration 015 auf Remote-Supabase anwenden (bisher nur via PGlite in Tests).
+- Playwright-E2E „Brief → ZIP mit 44 Files" (Orchestrierung ist via Integrationstests
+  gegen echtes PGlite-Schema abgedeckt, aber kein Browser-E2E).
+
+---
+
 ## Phase 6: Drag-Positionierung + Per-Asset-Regen
 
 **User stories**: FR-33 (Master-Drag Propagation), FR-34 (Per-Asset-Override), FR-41 (Drag-UI Safezones), FR-42 (Chat-Edit)

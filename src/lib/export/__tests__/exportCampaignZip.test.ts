@@ -6,7 +6,7 @@ import AdmZip from "adm-zip";
 import { createTestDb } from "../../db/__tests__/fixtures/createTestDb";
 import { createInMemoryStorage } from "../../storage/inMemoryStorage";
 import { createCampaign } from "../../db/queries/campaigns";
-import { createAsset } from "../../db/queries/assets";
+import { createAsset, recordFailedAsset } from "../../db/queries/assets";
 import { exportCampaignZip } from "../exportCampaignZip";
 import type { Brief } from "../../schemas/brief";
 
@@ -138,5 +138,43 @@ describe("exportCampaignZip", () => {
       "wingo_flashsale_halfpage_300x600_fr.png",
       "wingo_flashsale_halfpage_300x600_it.png",
     ]);
+  });
+
+  // Partial-success: ein fehlgeschlagenes Asset (status='failed', storage_url=NULL)
+  // darf den ZIP-Download nicht crashen — es wird stumm uebersprungen, die
+  // erfolgreichen Assets landen trotzdem im Archiv.
+  it("skips failed (storage_url=NULL) rows and still zips the rendered assets", async () => {
+    const storage = createInMemoryStorage();
+
+    const okBytes = Buffer.from("HALFPAGE-OK");
+    const { url } = await storage.upload("hp-ok.png", okBytes, "image/png");
+    await createAsset(db, {
+      campaign_id: campaignId,
+      format_id: halfpageFormatId,
+      language: "de",
+      storage_url: url,
+      file_size_bytes: okBytes.length,
+      mime_type: "image/png",
+    });
+
+    // Fehlgeschlagenes Asset ohne URL — fetch(null) wuerde ohne Filter den
+    // ganzen Promise.all-Export crashen.
+    await recordFailedAsset(db, {
+      campaign_id: campaignId,
+      format_id: billboardFormatId,
+      language: "de",
+      error: "render boom",
+    });
+
+    const zipBuf = await exportCampaignZip(db, campaignId, async (u) => {
+      const key = u.replace("memory://", "");
+      const bytes = storage.read(key);
+      if (!bytes) throw new Error(`Missing: ${key}`);
+      return bytes;
+    });
+
+    const archive = new AdmZip(zipBuf);
+    const names = archive.getEntries().map((e) => e.entryName).sort();
+    expect(names).toEqual(["wingo_flashsale_halfpage_300x600_de.png"]);
   });
 });

@@ -8,11 +8,12 @@ import { createTestDb } from "../../db/__tests__/fixtures/createTestDb";
 import { createInMemoryStorage } from "../../storage/inMemoryStorage";
 import { loadBrand } from "../../brand/loadBrand";
 import { createCampaign } from "../../db/queries/campaigns";
-import { runMultiplex } from "../runMultiplex";
+import { runMultiplex, retryAsset } from "../runMultiplex";
 import { listRegisteredFormatCodes } from "../../../templates/wingo/registry";
 import type { Brief } from "../../schemas/brief";
 import type { BrandConfig } from "../../brand/loadBrand";
 import type { VisionQAClient, VisionQAResult } from "../../qa/runVisionQA";
+import type { TranslateLLMFn } from "../../copy/translateCampaignCopy";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -241,6 +242,170 @@ describe("runMultiplex", () => {
       [campaignId]
     );
     expect(r.rows[0].status).toBe("failed");
+  });
+
+  it("keeps successful assets and records failures when a single render fails (partial-success)", async () => {
+    const storage = createInMemoryStorage();
+    let n = 0;
+    const renderSpy = vi.fn().mockImplementation(async () => {
+      n++;
+      if (n === 1) throw new Error("transient boom");
+      return Buffer.from(PNG_SIG);
+    });
+
+    const total = listRegisteredFormatCodes("flash_sale").length; // DE only
+
+    const result = await runMultiplex(db, storage, {
+      campaignId,
+      brandConfig,
+      logoUrl: "memory://logo.svg",
+      renderToPng: renderSpy,
+      maxRenderRetries: 0, // kein Auto-Retry, damit genau 1 Fehler stehen bleibt
+    });
+
+    expect(result.assets).toHaveLength(total - 1);
+    expect(result.failures).toHaveLength(1);
+
+    const status = await db.query<{ status: string }>(
+      `SELECT status FROM campaigns WHERE id = $1`,
+      [campaignId]
+    );
+    expect(status.rows[0].status).toBe("done");
+
+    const failed = await db.query<{ count: string }>(
+      `SELECT count(*) AS count FROM assets WHERE campaign_id = $1 AND status = 'failed'`,
+      [campaignId]
+    );
+    expect(Number(failed.rows[0].count)).toBe(1);
+  });
+
+  it("is idempotent: re-running deletes old assets instead of crashing on the UNIQUE constraint", async () => {
+    const storage = createInMemoryStorage();
+    const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+    const total = listRegisteredFormatCodes("flash_sale").length;
+
+    await runMultiplex(db, storage, {
+      campaignId,
+      brandConfig,
+      logoUrl: "memory://logo.svg",
+      renderToPng: renderSpy,
+    });
+
+    // Simuliert Re-Open auf final_pending OHNE manuelles Loeschen — beweist, dass
+    // runMultiplex selbst idempotent ist.
+    await db.query(`UPDATE campaigns SET status = 'final_pending' WHERE id = $1`, [
+      campaignId,
+    ]);
+
+    const result2 = await runMultiplex(db, storage, {
+      campaignId,
+      brandConfig,
+      logoUrl: "memory://logo.svg",
+      renderToPng: renderSpy,
+    });
+
+    expect(result2.assets).toHaveLength(total);
+    const dbAssets = await db.query<{ count: string }>(
+      `SELECT count(*) AS count FROM assets WHERE campaign_id = $1`,
+      [campaignId]
+    );
+    expect(Number(dbAssets.rows[0].count)).toBe(total);
+  });
+
+  it("translate-if-missing: fills fr/it/en before render to produce all 44", async () => {
+    const storage = createInMemoryStorage();
+    const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+    const fakeTranslate = vi.fn().mockResolvedValue({
+      fr: { headlines: ["FR a", "FR b", "FR c"], subline: "FR s", cta_label: "FR c" },
+      it: { headlines: ["IT a", "IT b", "IT c"], subline: "IT s", cta_label: "IT c" },
+      en: { headlines: ["EN a", "EN b", "EN c"], subline: "EN s", cta_label: "EN c" },
+    }) as unknown as TranslateLLMFn;
+
+    const total = listRegisteredFormatCodes("flash_sale").length;
+
+    const result = await runMultiplex(db, storage, {
+      campaignId,
+      brandConfig,
+      logoUrl: "memory://logo.svg",
+      renderToPng: renderSpy,
+      translate: { passthroughTerms: ["Wingo"], llm: fakeTranslate },
+    });
+
+    expect(fakeTranslate).toHaveBeenCalledTimes(1);
+    expect(result.assets).toHaveLength(total * 4);
+
+    const langs = await db.query<{ language: string }>(
+      `SELECT DISTINCT language FROM campaign_copy WHERE campaign_id = $1 AND is_approved = true`,
+      [campaignId]
+    );
+    expect(langs.rows.map((r) => r.language).sort()).toEqual([
+      "de",
+      "en",
+      "fr",
+      "it",
+    ]);
+  });
+
+  it("fails loud when no hero is selected (Gate 2 incomplete)", async () => {
+    const storage = createInMemoryStorage();
+    const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+    await db.query(`DELETE FROM campaign_hero WHERE campaign_id = $1`, [campaignId]);
+
+    await expect(
+      runMultiplex(db, storage, {
+        campaignId,
+        brandConfig,
+        logoUrl: "memory://logo.svg",
+        renderToPng: renderSpy,
+      })
+    ).rejects.toThrow(/Hero/);
+
+    const status = await db.query<{ status: string }>(
+      `SELECT status FROM campaigns WHERE id = $1`,
+      [campaignId]
+    );
+    expect(status.rows[0].status).toBe("failed");
+  });
+
+  it("retryAsset re-renders a single format x language and upserts the failed row", async () => {
+    const storage = createInMemoryStorage();
+    const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+    const fmt = await db.query<{ id: string }>(
+      `SELECT id FROM format_specs WHERE code = 'dv360_halfpage'`
+    );
+    const formatId = fmt.rows[0].id;
+
+    // Vorher: eine fehlgeschlagene Zeile fuer (Format x de)
+    await db.query(
+      `INSERT INTO assets (campaign_id, format_id, language, storage_url, status, render_error)
+         VALUES ($1, $2, 'de', NULL, 'failed', 'boom')`,
+      [campaignId, formatId]
+    );
+
+    const result = await retryAsset(db, storage, {
+      campaignId,
+      brandConfig,
+      logoUrl: "memory://logo.svg",
+      formatId,
+      language: "de",
+      renderToPng: renderSpy,
+    });
+    expect(result.formatCode).toBe("dv360_halfpage");
+
+    const row = await db.query<{
+      status: string;
+      storage_url: string | null;
+      render_error: string | null;
+    }>(
+      `SELECT status, storage_url, render_error FROM assets
+        WHERE campaign_id = $1 AND format_id = $2 AND language = 'de'`,
+      [campaignId, formatId]
+    );
+    expect(row.rows).toHaveLength(1); // Upsert, kein Duplikat
+    expect(row.rows[0].status).toBe("rendered");
+    expect(row.rows[0].storage_url).not.toBeNull();
+    expect(row.rows[0].render_error).toBeNull();
   });
 
   describe("AI-Label injection", () => {

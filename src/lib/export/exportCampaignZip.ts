@@ -49,6 +49,11 @@ export async function exportCampaignZip(
        JOIN brands b        ON b.id = c.brand_id
        JOIN format_specs fs ON fs.id = a.format_id
       WHERE a.campaign_id = $1
+        -- Partial-success: fehlgeschlagene Renders sind als status='failed' mit
+        -- storage_url IS NULL persistiert. Die nie mitzippen, sonst landet ein
+        -- NULL-URL in fetch() und der ganze ZIP-Download crasht (Promise.all).
+        AND a.status <> 'failed'
+        AND a.storage_url IS NOT NULL
       ORDER BY fs.format_bezeichnung, a.language`,
     [campaignId]
   );

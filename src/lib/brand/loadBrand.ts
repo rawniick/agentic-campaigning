@@ -10,10 +10,12 @@ import {
   type Disclaimer,
 } from "../db/queries/disclaimers";
 import { loadBrandTokens, type BrandTokens } from "./loadTokens";
+import { loadGlossar, type Glossar } from "./loadGlossar";
 
 export interface BrandConfig {
   brand: Brand;
   tokens: BrandTokens;
+  glossar: Glossar;
   defaultVoice: BrandVoice;
   disclaimers: Disclaimer[];
   formats: FormatSpec[];
@@ -36,6 +38,7 @@ export async function loadBrand(
   }
 
   const tokens = loadBrandTokens(slug, { baseDir: opts.baseDir });
+  const glossar = loadGlossar(slug, { baseDir: opts.baseDir });
 
   const [defaultVoice, disclaimers, formats] = await Promise.all([
     getDefaultVoice(db, brand.id),
@@ -43,5 +46,5 @@ export async function loadBrand(
     getV1Formats(db),
   ]);
 
-  return { brand, tokens, defaultVoice, disclaimers, formats };
+  return { brand, tokens, glossar, defaultVoice, disclaimers, formats };
 }

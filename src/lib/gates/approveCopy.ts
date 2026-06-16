@@ -63,14 +63,23 @@ export async function approveCopy(db: Db, input: ApproveCopyInput): Promise<void
     throw e;
   }
 
-  // Translation laeuft NACH dem Commit. Wenn sie fehlschlaegt, ist die DE-Copy
-  // weiterhin approved — der User kann Translation in Folge re-triggern, ohne
-  // den State-Change rueckabwickeln zu muessen.
+  // Translation laeuft NACH dem Commit und ist BEST-EFFORT: ein LLM-Hiccup darf
+  // das Gate-1-Approval nicht scheitern lassen — die DE-Copy bleibt approved.
+  // Sicherheitsnetz ist runMultiplex (translate-if-missing), das fehlende
+  // Zielsprachen vor dem Render nachzieht und sonst fail-loud abbricht.
   if (input.translateOptions) {
-    await translateCampaignCopy(db, {
-      campaignId,
-      passthroughTerms: input.translateOptions.passthroughTerms,
-      llm: input.translateOptions.llm,
-    });
+    try {
+      await translateCampaignCopy(db, {
+        campaignId,
+        passthroughTerms: input.translateOptions.passthroughTerms,
+        llm: input.translateOptions.llm,
+      });
+    } catch (e) {
+      console.error(
+        `[approveCopy] Gate-1-Uebersetzung fehlgeschlagen fuer ${campaignId}, ` +
+          `wird im Multiplexer nachgezogen:`,
+        e
+      );
+    }
   }
 }

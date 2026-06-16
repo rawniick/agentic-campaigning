@@ -4,12 +4,15 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/lib/db/server";
 import { getActiveBrandConfig } from "@/lib/brand/server";
+import { resolveLogoSrc } from "@/lib/brand/resolveLogoSrc";
 import { createSupabaseStorage } from "@/lib/storage/supabaseStorage";
 import { approveCopy } from "@/lib/gates/approveCopy";
+import { createClaudeTranslator } from "@/lib/copy/claudeTranslator";
 import { uploadHero } from "@/lib/gates/uploadHero";
 import { selectHeroFromLibrary } from "@/lib/gates/selectHeroFromLibrary";
 import { selectLayoutVariant } from "@/lib/gates/selectLayoutVariant";
-import { finalRender } from "@/lib/gates/finalRender";
+import { runMultiplex, retryAsset } from "@/lib/orchestrate/runMultiplex";
+import { createClaudeVisionClient } from "@/lib/qa/claudeVisionClient";
 import { reopenToGate, type ReopenTarget } from "@/lib/gates/reopenToGate";
 import { promoteHeroToLibrary } from "@/lib/heroLibrary/promoteHeroToLibrary";
 import { writeAudit } from "@/lib/db/queries/audit";
@@ -23,7 +26,17 @@ export async function approveCopyGateAction(formData: FormData) {
   const { campaignId, headlineIndex } = approveCopySchema.parse(
     Object.fromEntries(formData)
   );
-  await approveCopy(getDb(), { campaignId, headlineIndex });
+  // Gate-1 loest die FR/IT/EN-Uebersetzung best-effort aus (Passthrough-Terms
+  // aus dem Brand-Glossar). Schlaegt sie fehl, zieht runMultiplex sie nach.
+  const brand = await getActiveBrandConfig();
+  await approveCopy(getDb(), {
+    campaignId,
+    headlineIndex,
+    translateOptions: {
+      passthroughTerms: brand.glossar.passthrough_terms,
+      llm: createClaudeTranslator(),
+    },
+  });
   await writeAudit(getDb(), {
     campaignId,
     event: "GATE1_COPY_APPROVED",
@@ -102,17 +115,59 @@ const finalRenderSchema = z.object({ campaignId: z.string().uuid() });
 export async function finalRenderGateAction(formData: FormData) {
   const { campaignId } = finalRenderSchema.parse(Object.fromEntries(formData));
   const brand = await getActiveBrandConfig();
-  const logoUrl =
-    "https://placehold.co/80x24/EFEFEF/E61E2A.png?text=wingo";
-  await finalRender(getDb(), createSupabaseStorage(), {
+  // Echtes Wingo-Lockup als PNG-Data-URL (Interim-Platzhalter solange das
+  // echte File fehlt) — kein placehold.co mehr.
+  const logoUrl = resolveLogoSrc(brand.tokens, brand.brand.slug);
+
+  // Gate 4 multiplext jetzt: 11 Formate x 4 Sprachen = 44 Assets. translate
+  // sichert fehlende Zielsprachen vor dem Render (translate-if-missing).
+  const result = await runMultiplex(getDb(), createSupabaseStorage(), {
     campaignId,
     brandConfig: brand,
     logoUrl,
+    translate: {
+      passthroughTerms: brand.glossar.passthrough_terms,
+      llm: createClaudeTranslator(),
+    },
+    // Vision-QA misst Brand-Konformitaet pro Asset (best-effort: ein QA-Fehler
+    // failt das Asset nicht). Badges/Scores landen in der Gallery.
+    visionClient: createClaudeVisionClient(),
   });
+
   await writeAudit(getDb(), {
     campaignId,
     event: "GATE4_RENDER_COMPLETED",
-    payload: {},
+    payload: { rendered: result.assets.length, failed: result.failures.length },
+  });
+  revalidatePath(`/campaigns/${campaignId}`);
+}
+
+const retryAssetSchema = z.object({
+  campaignId: z.string().uuid(),
+  formatId: z.string().uuid(),
+  language: z.string().min(1),
+});
+
+// Einzel-Retry eines fehlgeschlagenen Assets (Partial-success). Re-rendert nur
+// diese (Format x Sprache)-Kombination, Campaign bleibt 'done'.
+export async function retryAssetGateAction(formData: FormData) {
+  const { campaignId, formatId, language } = retryAssetSchema.parse(
+    Object.fromEntries(formData)
+  );
+  const brand = await getActiveBrandConfig();
+  const logoUrl = resolveLogoSrc(brand.tokens, brand.brand.slug);
+  await retryAsset(getDb(), createSupabaseStorage(), {
+    campaignId,
+    brandConfig: brand,
+    logoUrl,
+    formatId,
+    language,
+    visionClient: createClaudeVisionClient(),
+  });
+  await writeAudit(getDb(), {
+    campaignId,
+    event: "ASSET_RETRIED",
+    payload: { formatId, language },
   });
   revalidatePath(`/campaigns/${campaignId}`);
 }

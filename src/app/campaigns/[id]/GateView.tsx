@@ -10,9 +10,11 @@ import {
   selectHeroFromLibraryGateAction,
   selectLayoutGateAction,
   finalRenderGateAction,
+  retryAssetGateAction,
   promoteHeroToLibraryGateAction,
   reopenGateAction,
 } from "./_gate-actions";
+import { visionBadgeColor } from "@/lib/qa/visionBadge";
 
 interface LibraryEntry {
   id: string;
@@ -26,6 +28,9 @@ interface LibraryEntry {
 interface Props {
   campaignId: string;
   status: string;
+  // True, solange kein echtes Wingo-Lockup-PNG vorliegt und der Render den
+  // Interim-Platzhalter nutzt → Assets sind NICHT brand-konform (KO-Kriterium).
+  logoPlaceholder: boolean;
   copy:
     | {
         headlines: string[];
@@ -49,8 +54,56 @@ interface Props {
         is_approved: boolean;
       }
     | null;
-  assets: Array<{ id: string; storage_url: string; language: string }>;
+  assets: Array<{
+    id: string;
+    storage_url: string | null;
+    language: string;
+    status: string;
+    vision_qa_score: number | null;
+    render_error: string | null;
+    format_id: string;
+  }>;
   libraryEntries: LibraryEntry[];
+}
+
+type GalleryAsset = Props["assets"][number];
+
+const VISION_BADGE_CLASS: Record<string, string> = {
+  green: "bg-green-600 text-white",
+  yellow: "bg-amber-500 text-white",
+  red: "bg-red-600 text-white",
+  none: "bg-muted text-muted-foreground",
+};
+
+// Sortier-Rang: Probleme zuerst (failed -> rot -> gelb -> gruen -> unbewertet).
+function assetSeverity(a: GalleryAsset): number {
+  if (a.status === "failed") return 0;
+  const c = visionBadgeColor(a.vision_qa_score);
+  return c === "red" ? 1 : c === "yellow" ? 2 : c === "green" ? 3 : 4;
+}
+
+function VisionBadge({ score }: { score: number | null }) {
+  const color = visionBadgeColor(score);
+  const label = score === null ? "QA —" : `QA ${Math.round(score * 100)}%`;
+  return (
+    <span
+      className={`rounded px-2 py-0.5 text-xs font-medium ${VISION_BADGE_CLASS[color]}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function PlaceholderLogoWarning() {
+  return (
+    <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <strong>⚠️ Logo = Platzhalter — nicht brand-konform.</strong> Das echte
+      Wingo-Lockup fehlt noch (
+      <code className="text-xs">brand-assets/wingo/logos/wingo-lockup@3x.png</code>
+      ). Die gerenderten Assets nutzen einen Interim-Platzhalter und sind{" "}
+      <strong>nicht final auslieferbar</strong>.
+    </div>
+  );
 }
 
 function GateBadge({ active, done }: { active: boolean; done: boolean }) {
@@ -71,6 +124,7 @@ function GateBadge({ active, done }: { active: boolean; done: boolean }) {
 export function GateView({
   campaignId,
   status,
+  logoPlaceholder,
   copy,
   hero,
   layout,
@@ -78,6 +132,7 @@ export function GateView({
   libraryEntries,
 }: Props) {
   const [selectedHeadlineIdx, setSelectedHeadlineIdx] = useState<number>(0);
+  const [langFilter, setLangFilter] = useState<string>("all");
 
   const inCopy = status === "copy_pending";
   const inHero = status === "hero_pending";
@@ -281,6 +336,7 @@ export function GateView({
             Engine rendert jetzt die Halfpage. Nach Klick: Asset entsteht in
             Supabase Storage.
           </p>
+          {logoPlaceholder && <PlaceholderLogoWarning />}
           <form action={finalRenderGateAction}>
             <input type="hidden" name="campaignId" value={campaignId} />
             <Button type="submit">Rendern</Button>
@@ -292,35 +348,119 @@ export function GateView({
       {isDone && (
         <section className="rounded-md border bg-card p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Fertig</h2>
-          <p className="mb-4 text-xs text-muted-foreground">
-            {assets.length} Asset(s) gerendert.
-          </p>
-          {assets.length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {assets.map((a) => (
-                <div key={a.id} className="rounded-md border bg-background p-3">
-                  <div className="mb-2 text-xs text-muted-foreground">
-                    {a.language.toUpperCase()}
-                  </div>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={a.storage_url}
-                    alt=""
-                    className="w-full rounded border bg-white"
-                  />
-                  <a
-                    href={a.storage_url}
-                    download
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-block text-sm underline"
-                  >
-                    Download
-                  </a>
-                </div>
-              ))}
-            </div>
-          )}
+          {(() => {
+            const renderedCount = assets.filter(
+              (a) => a.status !== "failed"
+            ).length;
+            const failedCount = assets.length - renderedCount;
+            const langs = Array.from(new Set(assets.map((a) => a.language)));
+            const shown = assets
+              .filter((a) => langFilter === "all" || a.language === langFilter)
+              .slice()
+              .sort((x, y) => assetSeverity(x) - assetSeverity(y));
+            return (
+              <>
+                {logoPlaceholder && <PlaceholderLogoWarning />}
+                <p className="mb-4 text-xs text-muted-foreground">
+                  {renderedCount} Asset(s) gerendert
+                  {failedCount > 0 ? `, ${failedCount} fehlgeschlagen` : ""}.
+                </p>
+                {assets.length > 0 && (
+                  <>
+                    <div className="mb-4 flex flex-wrap items-center gap-2">
+                      <a
+                        href={`/api/campaigns/${campaignId}/export`}
+                        className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                      >
+                        Alle als ZIP herunterladen
+                      </a>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        Sprache:
+                      </span>
+                      {["all", ...langs].map((l) => (
+                        <button
+                          key={l}
+                          type="button"
+                          onClick={() => setLangFilter(l)}
+                          className={`rounded border px-2 py-1 text-xs ${
+                            langFilter === l
+                              ? "bg-foreground text-background"
+                              : "bg-background"
+                          }`}
+                        >
+                          {l === "all" ? "Alle" : l.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {shown.map((a) => (
+                        <div
+                          key={a.id}
+                          className="rounded-md border bg-background p-3"
+                        >
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">
+                              {a.language.toUpperCase()}
+                            </span>
+                            {a.status === "failed" ? (
+                              <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-medium text-white">
+                                Fehlgeschlagen
+                              </span>
+                            ) : (
+                              <VisionBadge score={a.vision_qa_score} />
+                            )}
+                          </div>
+                          {a.status === "failed" ? (
+                            <div className="space-y-2">
+                              <p className="text-xs text-red-600">
+                                {a.render_error ?? "Render fehlgeschlagen"}
+                              </p>
+                              <form action={retryAssetGateAction}>
+                                <input
+                                  type="hidden"
+                                  name="campaignId"
+                                  value={campaignId}
+                                />
+                                <input
+                                  type="hidden"
+                                  name="formatId"
+                                  value={a.format_id}
+                                />
+                                <input
+                                  type="hidden"
+                                  name="language"
+                                  value={a.language}
+                                />
+                                <Button type="submit">Neu rendern</Button>
+                              </form>
+                            </div>
+                          ) : (
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={a.storage_url ?? undefined}
+                                alt=""
+                                className="w-full rounded border bg-white"
+                              />
+                              <a
+                                href={a.storage_url ?? undefined}
+                                download
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-2 inline-block text-sm underline"
+                              >
+                                Download
+                              </a>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            );
+          })()}
         </section>
       )}
 

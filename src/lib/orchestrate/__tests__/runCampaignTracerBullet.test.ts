@@ -153,11 +153,11 @@ describe("runCampaignTracerBullet", () => {
     expect(result.asset.storage_url).toContain("memory://");
 
     // Storage hat genau ein Objekt
-    expect(storage.has(result.asset.storage_url.replace("memory://", ""))).toBe(true);
+    expect(storage.has(result.asset.storage_url!.replace("memory://", ""))).toBe(true);
 
     // Asset-Bytes sind valides PNG
     const bytes = storage.read(
-      result.asset.storage_url.replace("memory://", "")
+      result.asset.storage_url!.replace("memory://", "")
     )!;
     expect(bytes.subarray(0, 8).equals(PNG_SIGNATURE)).toBe(true);
 

@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db/server";
 import { getCampaignById } from "@/lib/db/queries/campaigns";
 import { getAssetsForCampaign } from "@/lib/db/queries/assets";
 import { listHeroLibrary } from "@/lib/db/queries/hero-library";
+import { logoIsPlaceholder } from "@/lib/brand/resolveLogoSrc";
 import { GateView } from "./GateView";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,8 @@ export default async function CampaignDetailPage({ params }: PageProps) {
   const campaign = await getCampaignById(db, id);
   if (!campaign) notFound();
 
-  const [assets, copyRes, heroRes, layoutRes, libraryEntries] = await Promise.all([
+  const [assets, copyRes, heroRes, layoutRes, libraryEntries, brandRes] =
+    await Promise.all([
     getAssetsForCampaign(db, id),
     db.query<{
       headlines: string[];
@@ -41,7 +43,14 @@ export default async function CampaignDetailPage({ params }: PageProps) {
       [id]
     ),
     listHeroLibrary(db, campaign.brand_id),
+    db.query<{ slug: string }>(`SELECT slug FROM brands WHERE id = $1`, [
+      campaign.brand_id,
+    ]),
   ]);
+
+  // Warnt in der Gallery, falls noch kein echtes Wingo-Lockup vorliegt und der
+  // Render auf den Interim-Platzhalter zurueckfaellt (KO-Kriterium Brand-Logo).
+  const logoPlaceholder = logoIsPlaceholder(brandRes.rows[0]?.slug ?? "wingo");
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
@@ -74,6 +83,7 @@ export default async function CampaignDetailPage({ params }: PageProps) {
         <GateView
           campaignId={id}
           status={campaign.status}
+          logoPlaceholder={logoPlaceholder}
           copy={copyRes.rows[0] ?? null}
           hero={heroRes.rows[0] ?? null}
           layout={layoutRes.rows[0] ?? null}
@@ -81,6 +91,10 @@ export default async function CampaignDetailPage({ params }: PageProps) {
             id: a.id,
             storage_url: a.storage_url,
             language: a.language,
+            status: a.status,
+            vision_qa_score: a.vision_qa_score,
+            render_error: a.render_error,
+            format_id: a.format_id,
           }))}
           libraryEntries={libraryEntries.map((e) => ({
             id: e.id,

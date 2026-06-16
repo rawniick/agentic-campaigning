@@ -5,10 +5,12 @@ export interface Asset {
   campaign_id: string;
   format_id: string;
   language: string;
-  storage_url: string;
+  // null bei status='failed' (Render fehlgeschlagen, keine URL).
+  storage_url: string | null;
   file_size_bytes: number | null;
   mime_type: string | null;
   status: string;
+  render_error: string | null;
   vision_qa_score: number | null;
   vision_qa_details_json: Record<string, unknown> | null;
   position_overrides_json: Record<string, unknown> | null;
@@ -36,10 +38,20 @@ export async function createAsset(
   db: Db,
   input: CreateAssetInput
 ): Promise<Asset> {
+  // Upsert auf (campaign_id, format_id, language): macht Re-Runs und Einzel-Retry
+  // idempotent — eine zuvor failed-Zeile wird auf 'rendered' gehoben, render_error
+  // zurueckgesetzt.
   const res = await db.query<Record<string, unknown>>(
     `INSERT INTO assets
-       (campaign_id, format_id, language, storage_url, file_size_bytes, mime_type, status)
-       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'rendered'))
+       (campaign_id, format_id, language, storage_url, file_size_bytes, mime_type, status, render_error)
+       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'rendered'), NULL)
+       ON CONFLICT (campaign_id, format_id, language) DO UPDATE
+         SET storage_url = EXCLUDED.storage_url,
+             file_size_bytes = EXCLUDED.file_size_bytes,
+             mime_type = EXCLUDED.mime_type,
+             status = EXCLUDED.status,
+             render_error = NULL,
+             updated_at = now()
        RETURNING *`,
     [
       input.campaign_id,
@@ -50,6 +62,29 @@ export async function createAsset(
       input.mime_type ?? null,
       input.status ?? null,
     ]
+  );
+  return normalize(res.rows[0]);
+}
+
+export interface RecordFailedAssetInput {
+  campaign_id: string;
+  format_id: string;
+  language: string;
+  error: string;
+}
+
+// Persistiert eine fehlgeschlagene (Format x Sprache)-Kombination als
+// status='failed'-Zeile (ohne storage_url) fuer Fehler-Badge + Retry.
+export async function recordFailedAsset(
+  db: Db,
+  input: RecordFailedAssetInput
+): Promise<Asset> {
+  const res = await db.query<Record<string, unknown>>(
+    `INSERT INTO assets
+       (campaign_id, format_id, language, storage_url, status, render_error)
+       VALUES ($1, $2, $3, NULL, 'failed', $4)
+       RETURNING *`,
+    [input.campaign_id, input.format_id, input.language, input.error]
   );
   return normalize(res.rows[0]);
 }

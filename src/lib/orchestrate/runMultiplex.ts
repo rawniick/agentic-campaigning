@@ -3,11 +3,15 @@ import type { Db } from "../db/types";
 import type { AssetStorage } from "../storage/types";
 import type { BrandConfig } from "../brand/loadBrand";
 import { getV1Formats, type FormatSpec } from "../db/queries/format-specs";
-import { createAsset } from "../db/queries/assets";
+import { createAsset, recordFailedAsset } from "../db/queries/assets";
 import { renderToPng as defaultRenderToPng } from "../render/renderToPng";
 import { transitionGate, type CampaignState } from "../state/transitionGate";
 import { runVisionQA, type VisionQAClient } from "../qa/runVisionQA";
 import { resolveAiLabelConfig } from "../aiLabel/resolveAiLabelConfig";
+import {
+  translateCampaignCopy,
+  type TranslateLLMFn,
+} from "../copy/translateCampaignCopy";
 import {
   findTemplate,
   type CampaignArt,
@@ -25,6 +29,14 @@ export interface RunMultiplexInput {
     opts: { width: number; height: number }
   ) => Promise<Buffer>;
   visionClient?: VisionQAClient;
+  // Wenn gesetzt: fehlende Zielsprachen (fr/it/en) werden vor dem Render
+  // nachgezogen (translate-if-missing), damit wirklich alle 44 entstehen.
+  translate?: {
+    passthroughTerms: string[];
+    llm: TranslateLLMFn;
+  };
+  // Auto-Retry pro Asset gegen transiente Render-/Upload-Fehler. Default 2.
+  maxRenderRetries?: number;
 }
 
 export interface MultiplexedAsset {
@@ -34,9 +46,67 @@ export interface MultiplexedAsset {
   storageUrl: string;
 }
 
+export interface MultiplexFailure {
+  formatCode: string;
+  language: string;
+  error: string;
+}
+
 export interface RunMultiplexResult {
   assets: MultiplexedAsset[];
+  failures: MultiplexFailure[];
   durationMs: number;
+}
+
+// de ist die Quelle (Gate 1), uebersetzt werden fr/it/en.
+const TARGET_TRANSLATED_LANGUAGES = ["fr", "it", "en"] as const;
+
+// Zieht fehlende Zielsprachen via translateCampaignCopy nach. Fail-loud, wenn
+// danach immer noch Sprachen fehlen — kein stummes Rendern von nur 11 statt 44.
+async function ensureAllLanguages(
+  db: Db,
+  campaignId: string,
+  translate: NonNullable<RunMultiplexInput["translate"]>
+): Promise<void> {
+  const before = await db.query<{ language: string }>(
+    `SELECT language FROM campaign_copy WHERE campaign_id = $1 AND is_approved = true`,
+    [campaignId]
+  );
+  const have = new Set(before.rows.map((r) => r.language));
+  const missing = TARGET_TRANSLATED_LANGUAGES.filter((l) => !have.has(l));
+  if (missing.length === 0) return;
+
+  await translateCampaignCopy(db, {
+    campaignId,
+    passthroughTerms: translate.passthroughTerms,
+    llm: translate.llm,
+  });
+
+  const after = await db.query<{ language: string }>(
+    `SELECT language FROM campaign_copy WHERE campaign_id = $1 AND is_approved = true`,
+    [campaignId]
+  );
+  const haveAfter = new Set(after.rows.map((r) => r.language));
+  const stillMissing = TARGET_TRANSLATED_LANGUAGES.filter(
+    (l) => !haveAfter.has(l)
+  );
+  if (stillMissing.length > 0) {
+    throw new Error(
+      `Uebersetzung unvollstaendig — fehlende Sprachen: ${stillMissing.join(", ")}`
+    );
+  }
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries: number): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
 }
 
 interface GateData {
@@ -168,7 +238,8 @@ async function renderOneFormat(
   data: GateData,
   logoUrl: string,
   renderImpl: NonNullable<RunMultiplexInput["renderToPng"]>,
-  visionClient: VisionQAClient | undefined
+  visionClient: VisionQAClient | undefined,
+  maxRetries: number
 ): Promise<MultiplexedAsset> {
   // AI-Label-Pflicht (Brand-Compliance): nur bei source='ai' beziehen.
   // Wenn die Brand kein Label registriert hat, gibt der Resolver null zurueck —
@@ -192,9 +263,18 @@ async function renderOneFormat(
     aiLabel,
   });
 
-  const png = await renderImpl(jsx, { width: format.width, height: format.height });
   const key = `${brandConfig.brand.slug}/${campaignId}/${format.code}-${data.language}.png`;
-  const { url } = await storage.upload(key, png, "image/png");
+
+  // Auto-Retry nur um die transient-anfaellige Bild-Erzeugung (Render + Upload),
+  // bewusst KEINE DB-Writes — sonst riskieren wir doppelte Inserts beim Retry.
+  const { png, url } = await withRetry(async () => {
+    const png = await renderImpl(jsx, {
+      width: format.width,
+      height: format.height,
+    });
+    const { url } = await storage.upload(key, png, "image/png");
+    return { png, url };
+  }, maxRetries);
 
   const asset = await createAsset(db, {
     campaign_id: campaignId,
@@ -205,14 +285,23 @@ async function renderOneFormat(
     mime_type: "image/png",
   });
 
+  // Vision-QA ist best-effort: ein QA-Fehler darf das Asset nicht failen.
   if (visionClient) {
-    await runVisionQA(db, visionClient, {
-      assetId: asset.id,
-      imageBytes: png,
-      imageMimeType: "image/png",
-      brandPrimaryHex: brandConfig.tokens.colors.primary.hex,
-      formatCode: format.code,
-    });
+    try {
+      await runVisionQA(db, visionClient, {
+        assetId: asset.id,
+        imageBytes: png,
+        imageMimeType: "image/png",
+        brandPrimaryHex: brandConfig.tokens.colors.primary.hex,
+        formatCode: format.code,
+      });
+    } catch (e) {
+      console.error(
+        `[runMultiplex] Vision-QA fehlgeschlagen fuer Asset ${asset.id} ` +
+          `(best-effort, Asset bleibt gueltig):`,
+        e
+      );
+    }
   }
 
   return {
@@ -246,7 +335,19 @@ export async function runMultiplex(
   ]);
 
   try {
+    // translate-if-missing VOR dem Laden, damit neu erzeugte Sprachen mitgeladen
+    // werden. Garantiert 44 statt stumm 11 (oder fail-loud, wenn unmoeglich).
+    if (input.translate) {
+      await ensureAllLanguages(db, input.campaignId, input.translate);
+    }
+
     const dataPerLang = await loadGateDataPerLanguage(db, input.campaignId);
+
+    // Hero-Guard: ohne ausgewaehlten Hero (Gate 2) entstuende ein Asset ohne Bild.
+    if (!dataPerLang[0].hero_url) {
+      throw new Error("Kein Hero ausgewaehlt — Gate 2 nicht abgeschlossen");
+    }
+
     const kampagneArt = dataPerLang[0].kampagne_art;
     const v1Formats = await getV1Formats(db);
 
@@ -269,7 +370,14 @@ export async function runMultiplex(
       }
     }
 
-    const assets = await Promise.all(
+    // Idempotenz: alte Assets entfernen, bevor neu gerendert wird. Sonst crasht
+    // der Re-Run an UNIQUE(campaign_id, format_id, language).
+    await db.query(`DELETE FROM assets WHERE campaign_id = $1`, [input.campaignId]);
+
+    // Partial-success: ein einzelner Fehler killt nicht alle 44. Pro Asset
+    // Auto-Retry; Fehler werden gesammelt + als status='failed' persistiert.
+    const maxRetries = input.maxRenderRetries ?? 2;
+    const settled = await Promise.allSettled(
       renderTasks.map(({ format, component, data }) =>
         renderOneFormat(
           db,
@@ -281,10 +389,41 @@ export async function runMultiplex(
           data,
           input.logoUrl,
           renderImpl,
-          input.visionClient
+          input.visionClient,
+          maxRetries
         )
       )
     );
+
+    const assets: MultiplexedAsset[] = [];
+    const failures: MultiplexFailure[] = [];
+    for (let i = 0; i < settled.length; i++) {
+      const r = settled[i];
+      if (r.status === "fulfilled") {
+        assets.push(r.value);
+      } else {
+        const task = renderTasks[i];
+        const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
+        failures.push({
+          formatCode: task.format.code,
+          language: task.data.language,
+          error: msg,
+        });
+        await recordFailedAsset(db, {
+          campaign_id: input.campaignId,
+          format_id: task.format.id,
+          language: task.data.language,
+          error: msg,
+        });
+      }
+    }
+
+    // Totalausfall ist ein echter Fehler — fail-loud (state=failed).
+    if (assets.length === 0) {
+      throw new Error(
+        `Multiplex fehlgeschlagen — kein Asset gerendert (${failures.length} Fehler)`
+      );
+    }
 
     const doneState = transitionGate(renderingState, "RENDER_COMPLETE");
     await db.query(`UPDATE campaigns SET status = $2, updated_at = now() WHERE id = $1`, [
@@ -294,6 +433,7 @@ export async function runMultiplex(
 
     return {
       assets,
+      failures,
       durationMs: Date.now() - t0,
     };
   } catch (e) {
@@ -304,4 +444,55 @@ export async function runMultiplex(
     ]);
     throw e;
   }
+}
+
+export interface RetryAssetInput {
+  campaignId: string;
+  brandConfig: BrandConfig;
+  logoUrl: string;
+  formatId: string;
+  language: string;
+  renderToPng?: RunMultiplexInput["renderToPng"];
+  visionClient?: VisionQAClient;
+  maxRenderRetries?: number;
+}
+
+// Re-rendert genau EIN Asset (Format x Sprache) — fuer Einzel-Retry nach
+// Partial-success. Aendert KEINEN Campaign-State (bleibt 'done'); createAsset
+// upsertet die failed-Zeile auf status='rendered'.
+export async function retryAsset(
+  db: Db,
+  storage: AssetStorage,
+  input: RetryAssetInput
+): Promise<MultiplexedAsset> {
+  const renderImpl = input.renderToPng ?? defaultRenderToPng;
+
+  const dataPerLang = await loadGateDataPerLanguage(db, input.campaignId);
+  const data = dataPerLang.find((d) => d.language === input.language);
+  if (!data) {
+    throw new Error(`Keine approved Copy fuer Sprache ${input.language}`);
+  }
+  if (!data.hero_url) {
+    throw new Error("Kein Hero ausgewaehlt — Gate 2 nicht abgeschlossen");
+  }
+
+  const format = (await getV1Formats(db)).find((f) => f.id === input.formatId);
+  if (!format) throw new Error(`Format ${input.formatId} nicht gefunden`);
+
+  const component = findTemplate(format.code, data.kampagne_art);
+  if (!component) throw new Error(`Kein Template fuer Format ${format.code}`);
+
+  return renderOneFormat(
+    db,
+    storage,
+    input.brandConfig,
+    input.campaignId,
+    format,
+    component,
+    data,
+    input.logoUrl,
+    renderImpl,
+    input.visionClient,
+    input.maxRenderRetries ?? 2
+  );
 }
