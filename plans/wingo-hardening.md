@@ -15,14 +15,14 @@
 Ein Brief läuft end-to-end durch und liefert **44 Wingo-Assets (11 Formate × DE/FR/IT/EN)**, die
 **alle einen erzwungenen, deterministischen Brand-Konformitäts-Gate bestehen** (echtes Logo,
 unverzerrt, korrekte Dimensionen/Farben, Hero sichtbar, Compliance vollständig), **deployed auf
-`fmfrwcocsmpedtdpmcus`**, als frisches ZIP — und ist **visuell von Menschenauge bestätigt**.
+`kaqxwjmzavxysxtnkdeo`**, als frisches ZIP — und ist **visuell von Menschenauge bestätigt**.
 „Ship-safe" = ein Externer könnte es real benutzen.
 
 ---
 
 ## Architectural decisions (durable — gelten über alle Phasen)
 
-- **Deploy-DB:** App-Projekt `fmfrwcocsmpedtdpmcus`. Migrationen werden als **ein** SQL-Skript
+- **Deploy-DB:** App-Projekt `kaqxwjmzavxysxtnkdeo`. Migrationen werden als **ein** SQL-Skript
   vom User selbst im **Supabase-SQL-Editor** eingespielt (User teilt keine DB-Credentials).
   Projekt `gztkuzqbhhfmabenqgcj` (MCP / Event-App) wird **nicht angefasst**.
 - **Konformitäts-Gate:** **deterministisch** (Geometrie/Dimensionen/Farb-Presence/Platzhalter-Erkennung),

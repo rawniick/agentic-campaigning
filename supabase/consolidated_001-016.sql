@@ -1,5 +1,5 @@
 -- ACE Wingo V1 ? Konsolidiertes Schema (Migrationen 001-016)
--- EINMALIG im Supabase-SQL-Editor des Wingo-Projekts (fmfrwcocsmpedtdpmcus)
+-- EINMALIG im Supabase-SQL-Editor des Wingo-Projekts (kaqxwjmzavxysxtnkdeo)
 -- ausfuehren. Reihenfolge = Datei-Reihenfolge unten. Frische DB vorausgesetzt.
 
 

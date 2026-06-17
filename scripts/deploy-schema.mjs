@@ -1,4 +1,4 @@
-// One-Shot-Deploy-Runner fuer das Wingo-Supabase-Projekt (fmfrw...).
+// One-Shot-Deploy-Runner fuer das Wingo-Supabase-Projekt (kaqxw...).
 // Liest Secrets aus .env.local ZUR LAUFZEIT (nie geloggt) und:
 //   1. spielt supabase/consolidated_001-016.sql via pg ein (idempotent genug fuer
 //      eine frische DB; ADD COLUMN IF NOT EXISTS deckt Re-Runs der letzten Migrationen),
