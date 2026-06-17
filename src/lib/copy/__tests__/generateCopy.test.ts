@@ -99,6 +99,46 @@ describe("generateCopy", () => {
     if (db) await db.close();
   });
 
+  it("uses the matrix voice variant for (art, zielgruppe) over the brand default", async () => {
+    // VALID_BRIEF ist flash_sale + sozial.
+    await db.query(
+      `INSERT INTO brand_voice_variants
+         (brand_id, kampagne_art, zielgruppe, tov_md, is_default)
+         VALUES ($1, 'flash_sale', 'sozial',
+           '# Flash Sozial Voice\n- Laut, dringlich, Du.', false)`,
+      [wingoId]
+    );
+    try {
+      const llm = vi.fn().mockResolvedValueOnce({
+        data: { headlines: ["A", "B", "C"], subline: "S", cta_label: "C" },
+        rawText: "{}",
+        tokensUsed: { input: 50, output: 50, total: 100 },
+        model: "claude-sonnet-4-6",
+        stopReason: "end_turn",
+      });
+
+      await generateCopy(db, {
+        campaignId,
+        brief: VALID_BRIEF,
+        brandConfig,
+        language: "de",
+        disclaimers: [],
+        llm,
+      });
+
+      const { systemPrompt } = llm.mock.calls[0][0];
+      expect(systemPrompt).toContain("Flash Sozial Voice");
+      expect(systemPrompt).not.toContain("Wingo Default Voice");
+    } finally {
+      // brand_voice_variants wird nicht pro Test geleert — spezifische Zelle wieder weg,
+      // damit die anderen Tests den Default-Fallback sehen.
+      await db.query(
+        `DELETE FROM brand_voice_variants WHERE brand_id = $1 AND is_default = false`,
+        [wingoId]
+      );
+    }
+  });
+
   it("calls the LLM with the brand TOV in the system prompt", async () => {
     const llm = vi.fn().mockResolvedValueOnce({
       data: {

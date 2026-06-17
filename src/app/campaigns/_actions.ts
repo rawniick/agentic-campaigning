@@ -80,7 +80,7 @@ export async function submitBriefAction(input: SubmitBriefArgs) {
     brandConfig.brand.id,
     productContext
   );
-  await generateCopy(db, {
+  const copy = await generateCopy(db, {
     campaignId: campaign.id,
     brief,
     brandConfig,
@@ -92,7 +92,16 @@ export async function submitBriefAction(input: SubmitBriefArgs) {
   await writeAudit(db, {
     campaignId: campaign.id,
     event: "COPY_GENERATED",
-    payload: { language: "de" },
+    payload: {
+      language: "de",
+      // Welche TOV-Matrix-Zelle (oder Default) den Ton bestimmt hat — Debug-Trace.
+      voiceVariant: {
+        id: copy.voiceVariant.id,
+        is_default: copy.voiceVariant.is_default,
+        kampagne_art: copy.voiceVariant.kampagne_art,
+        zielgruppe: copy.voiceVariant.zielgruppe,
+      },
+    },
   });
 
   revalidatePath("/");

@@ -3,6 +3,7 @@ import type { Brief } from "../schemas/brief";
 import type { BrandConfig } from "../brand/loadBrand";
 import type { Disclaimer } from "../db/queries/disclaimers";
 import type { ClaudeCallOptions, ClaudeResponse } from "../ai/claude";
+import { findVoiceVariant, type BrandVoice } from "../db/queries/brand-voice";
 
 export interface CopyOutput {
   headlines: string[];
@@ -15,6 +16,11 @@ export interface CampaignCopy extends CopyOutput {
   campaign_id: string;
   language: string;
   disclaimer_ids: string[];
+}
+
+export interface GenerateCopyResult extends CampaignCopy {
+  // Welche TOV-Variante (Matrix-Zelle oder Default) verwendet wurde — fuer Audit-Log.
+  voiceVariant: BrandVoice;
 }
 
 export interface GenerateCopyInput {
@@ -44,7 +50,11 @@ function buildBriefContext(brief: Brief): Record<string, unknown> {
   };
 }
 
-function buildSystemPrompt(brandConfig: BrandConfig, language: string): string {
+function buildSystemPrompt(
+  brandConfig: BrandConfig,
+  language: string,
+  tovMd: string
+): string {
   const termList =
     brandConfig.glossar.passthrough_terms.map((t) => `- "${t}"`).join("\n") ||
     "- (keine)";
@@ -53,7 +63,7 @@ function buildSystemPrompt(brandConfig: BrandConfig, language: string): string {
 
 # Tone of Voice (Pflicht)
 
-${brandConfig.defaultVoice.tov_md}
+${tovMd}
 
 # Glossar (UNVERAENDERT — niemals paraphrasieren oder uebersetzen)
 
@@ -91,8 +101,22 @@ function buildUserMessage(brief: Brief): string {
 export async function generateCopy(
   db: Db,
   input: GenerateCopyInput
-): Promise<CampaignCopy> {
-  const systemPrompt = buildSystemPrompt(input.brandConfig, input.language);
+): Promise<GenerateCopyResult> {
+  // TOV-Matrix: spezifische Zelle (Kampagnen-Art x Zielgruppe) schlaegt den
+  // Brand-Default. findVoiceVariant faellt auf is_default zurueck, wenn keine
+  // Zelle existiert.
+  const voiceVariant = await findVoiceVariant(
+    db,
+    input.brandConfig.brand.id,
+    input.brief.kampagne.art,
+    input.brief.vermarktung.zielgruppe
+  );
+
+  const systemPrompt = buildSystemPrompt(
+    input.brandConfig,
+    input.language,
+    voiceVariant.tov_md
+  );
   const userMessage = buildUserMessage(input.brief);
 
   const response = await input.llm({
@@ -133,5 +157,6 @@ export async function generateCopy(
     subline: row.subline,
     cta_label: row.cta_label,
     disclaimer_ids: row.disclaimer_ids ?? [],
+    voiceVariant,
   };
 }
