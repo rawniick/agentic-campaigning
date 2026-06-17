@@ -29,12 +29,13 @@ export interface GenerateCopyInput {
 // Compliance: Preise und Disclaimer-Texte werden NIE an die LLM gesendet.
 // Der Brief, der ins userMessage geht, ist eine bewusste Reduktion: nur
 // kommunikationsrelevanter Kontext, keine pass-through-Werte.
+// `konditionen` ist BEWUSST ausgeschlossen — Freitext, der Preise/Vertrags-Werte
+// enthalten kann (die gehoeren in Preis-Felder + Disclaimer, nie in die Creative-Copy).
 function buildBriefContext(brief: Brief): Record<string, unknown> {
   return {
     kampagne_art: brief.kampagne.art,
     produkt_kategorie: brief.kampagne.produkt_kategorie,
     produkt_name: brief.produkt.name,
-    konditionen: brief.produkt.konditionen,
     strategie: brief.strategie.input,
     hauptbotschaft: brief.vermarktung.hauptbotschaft,
     nebenbotschaft: brief.vermarktung.nebenbotschaft,
@@ -44,15 +45,20 @@ function buildBriefContext(brief: Brief): Record<string, unknown> {
 }
 
 function buildSystemPrompt(brandConfig: BrandConfig, language: string): string {
+  const termList =
+    brandConfig.glossar.passthrough_terms.map((t) => `- "${t}"`).join("\n") ||
+    "- (keine)";
+
   return `Du bist ein Senior-Copywriter fuer ${brandConfig.brand.name}.
 
 # Tone of Voice (Pflicht)
 
 ${brandConfig.defaultVoice.tov_md}
 
-# Glossar
+# Glossar (UNVERAENDERT — niemals paraphrasieren oder uebersetzen)
 
-Wingo-Markennamen bleiben unveraendert in jeder Sprache.
+Die folgenden Wingo-Markennamen/-Phrasen bleiben exakt identisch:
+${termList}
 
 # Aufgabe
 

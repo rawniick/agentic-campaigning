@@ -219,10 +219,18 @@ async function loadGateDataPerLanguage(db: Db, campaignId: string): Promise<Gate
   }
 
   return res.rows.map((row) => {
-    const firstId = row.disclaimer_ids?.[0];
-    const texts = firstId ? disclaimerTexts.get(firstId) : undefined;
     const col = disclaimerColumnFor(row.language).slice(5) as "de" | "fr" | "it" | "en";
-    const disclaimer_text = texts?.[col] ?? "";
+    // ALLE zutreffenden Disclaimer rendern (Compliance: ein Produkt kann mehrere
+    // Pflicht-Hinweise haben, z.B. 5G-Netz + Preis-/Vertrags-Disclaimer) — nicht
+    // nur der erste. Pro Sprache aus der DB, nie via LLM uebersetzt. Reihenfolge ist
+    // via matchDisclaimers ORDER BY slug deterministisch.
+    // Separator " · " statt "\n": Satori rendert white-space:normal und wuerde ein
+    // "\n" zu einem Space kollabieren (Run-on); " · " trennt sichtbar und umbricht
+    // sauber. (Echtes mehrzeiliges Disclaimer-Layout ist ein spaeterer Template-Schliff.)
+    const disclaimer_text = (row.disclaimer_ids ?? [])
+      .map((id) => disclaimerTexts.get(id)?.[col])
+      .filter((t): t is string => Boolean(t))
+      .join(" · ");
     return {
       brand_id: row.brand_id,
       kampagne_art: row.art as CampaignArt,

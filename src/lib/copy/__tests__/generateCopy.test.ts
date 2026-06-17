@@ -71,10 +71,10 @@ describe("generateCopy", () => {
           text_de, text_fr, text_it, text_en)
          VALUES ($1, '5g_swisscom_netz', '5G im Swisscom Netz',
                  '{"network": "5g"}'::jsonb, ARRAY['mobile'],
-                 '5G im Swisscom Netz',
-                 '5G dans le reseau Swisscom',
-                 'Rete 5G di Swisscom',
-                 '5G in Swisscom network')
+                 'Aktion gueltig bis 30.06.2026. Mindestvertragslaufzeit 24 Monate.',
+                 'Offre valable jusqu au 30.06.2026. Duree minimale 24 mois.',
+                 'Offerta valida fino al 30.06.2026. Durata minima 24 mesi.',
+                 'Offer valid until 30.06.2026. Minimum term 24 months.')
          RETURNING id`,
       [wingoId]
     );
@@ -188,8 +188,9 @@ describe("generateCopy", () => {
     });
 
     const args = llm.mock.calls[0][0];
-    expect(args.systemPrompt).not.toContain("5G im Swisscom Netz");
-    expect(args.userMessage).not.toContain("5G im Swisscom Netz");
+    const full = `${args.systemPrompt}\n${args.userMessage}`;
+    expect(full).not.toContain("Mindestvertragslaufzeit 24 Monate");
+    expect(full).not.toContain("Aktion gueltig bis 30.06.2026");
   });
 
   it("never sends the promo price to the LLM (pass-through compliance)", async () => {
@@ -214,5 +215,61 @@ describe("generateCopy", () => {
     const args = llm.mock.calls[0][0];
     expect(args.systemPrompt).not.toMatch(/19\.95/);
     expect(args.userMessage).not.toMatch(/19\.95/);
+  });
+
+  it("never sends konditionen (free-text that may contain prices) to the LLM", async () => {
+    const briefWithKonditionen: Brief = {
+      ...VALID_BRIEF,
+      produkt: {
+        ...VALID_BRIEF.produkt,
+        konditionen: "Aktionspreis 9.95 fuer 12 Monate, danach 29.95/Mt.",
+      },
+    };
+    const llm = vi.fn().mockResolvedValueOnce({
+      data: { headlines: ["X", "Y", "Z"], subline: "S", cta_label: "C" },
+      rawText: "{}",
+      tokensUsed: { input: 50, output: 50, total: 100 },
+      model: "claude-sonnet-4-6",
+      stopReason: "end_turn",
+    });
+
+    await generateCopy(db, {
+      campaignId,
+      brief: briefWithKonditionen,
+      brandConfig,
+      language: "de",
+      disclaimers: [],
+      llm,
+    });
+
+    const args = llm.mock.calls[0][0];
+    const full = `${args.systemPrompt}\n${args.userMessage}`;
+    expect(full).not.toContain("9.95");
+    expect(full).not.toContain("Aktionspreis");
+  });
+
+  it("injects the brand glossar passthrough terms into the DE system prompt", async () => {
+    const llm = vi.fn().mockResolvedValueOnce({
+      data: { headlines: ["X", "Y", "Z"], subline: "S", cta_label: "C" },
+      rawText: "{}",
+      tokensUsed: { input: 50, output: 50, total: 100 },
+      model: "claude-sonnet-4-6",
+      stopReason: "end_turn",
+    });
+
+    await generateCopy(db, {
+      campaignId,
+      brief: VALID_BRIEF,
+      brandConfig,
+      language: "de",
+      disclaimers: [],
+      llm,
+    });
+
+    const { systemPrompt } = llm.mock.calls[0][0];
+    expect(brandConfig.glossar.passthrough_terms.length).toBeGreaterThan(0);
+    for (const term of brandConfig.glossar.passthrough_terms) {
+      expect(systemPrompt).toContain(term);
+    }
   });
 });

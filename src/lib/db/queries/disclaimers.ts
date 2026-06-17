@@ -50,10 +50,14 @@ export async function matchDisclaimers(
             text_de, text_fr, text_it, text_en, is_required
        FROM disclaimers
       WHERE brand_id = $1
-        AND is_active = true`,
+        AND is_active = true
+      ORDER BY slug`,
     [brandId]
   );
 
+  // ORDER BY slug oben macht die Disclaimer-Reihenfolge deterministisch — wichtig,
+  // weil generateCopy diese Reihenfolge als disclaimer_ids[] speichert und der
+  // Multiplexer sie in genau dieser Reihenfolge in jedes Asset rendert.
   return result.rows.filter((d) => matchesContext(d, ctx));
 }
 

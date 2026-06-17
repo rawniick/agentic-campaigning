@@ -258,6 +258,37 @@ describe("runMultiplex", () => {
     expect(rows.rows.every((r) => r.conformity_pass === false)).toBe(true);
   });
 
+  it("renders ALL matched disclaimers per asset, not just the first", async () => {
+    const storage = createInMemoryStorage();
+    const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+    const d2 = await db.query<{ id: string }>(
+      `INSERT INTO disclaimers
+         (brand_id, slug, name, conditions_json, applies_to_categories,
+          text_de, text_fr, text_it, text_en)
+         VALUES ($1, 'zweiter', 'Zweiter', '{}'::jsonb, ARRAY['mobile'],
+                 'Zweiter Hinweis DE', 'fr2', 'it2', 'en2')
+         RETURNING id`,
+      [wingoId]
+    );
+    await db.query(
+      `UPDATE campaign_copy SET disclaimer_ids = ARRAY[$1, $2]::uuid[]
+         WHERE campaign_id = $3 AND language = 'de'`,
+      [disclaimerId, d2.rows[0].id, campaignId]
+    );
+
+    await runMultiplex(db, storage, {
+      campaignId,
+      brandConfig,
+      logoUrl: "memory://logo.svg",
+      renderToPng: renderSpy,
+    });
+
+    const jsx = renderSpy.mock.calls[0][0] as { props: { disclaimer: string } };
+    expect(jsx.props.disclaimer).toContain("5G im Swisscom Netz");
+    expect(jsx.props.disclaimer).toContain("Zweiter Hinweis DE");
+  });
+
   it("passes selected headline, price, disclaimer text, and layout variant verbatim into the rendered template", async () => {
     const storage = createInMemoryStorage();
     const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
