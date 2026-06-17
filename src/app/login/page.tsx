@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,12 +77,8 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Anmelden..." : "Anmelden"}
             </Button>
-            <p className="text-sm text-muted-foreground">
-              Noch kein Konto?{" "}
-              <Link href="/signup" className="text-primary hover:underline">
-                Registrieren
-              </Link>
-            </p>
+            {/* Single-User V1: keine oeffentliche Registrierung. Das Konto wird
+                im Supabase-Dashboard provisioniert (+ "Enable email signups" off). */}
           </CardFooter>
         </form>
       </Card>

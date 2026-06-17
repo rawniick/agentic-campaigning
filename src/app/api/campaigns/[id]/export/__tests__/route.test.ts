@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // DB + ZIP-Builder mocken: wir testen nur die Route-Logik (Validierung,
 // Fehler-Maskierung, Header) deterministisch, ohne echte Supabase/Storage.
 vi.mock("@/lib/db/server", () => ({ getDb: vi.fn(() => ({})) }));
+vi.mock("@/lib/auth/get-user", () => ({ getAuthUser: vi.fn() }));
 vi.mock("@/lib/export/exportCampaignZip", () => ({
   exportCampaignZip: vi.fn(),
   EmptyExportError: class EmptyExportError extends Error {
@@ -20,8 +21,10 @@ import {
   exportCampaignZip,
   EmptyExportError,
 } from "@/lib/export/exportCampaignZip";
+import { getAuthUser } from "@/lib/auth/get-user";
 
 const zipMock = exportCampaignZip as unknown as ReturnType<typeof vi.fn>;
+const authMock = getAuthUser as unknown as ReturnType<typeof vi.fn>;
 const VALID_UUID = "11111111-1111-4111-8111-111111111111";
 
 function call(id: string) {
@@ -34,6 +37,15 @@ describe("GET /api/campaigns/[id]/export", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => {});
+    // Standard: eingeloggter User — einzelne Tests ueberschreiben das.
+    authMock.mockResolvedValue({ id: "user-1" });
+  });
+
+  it("returns 401 when there is no authenticated user", async () => {
+    authMock.mockResolvedValueOnce(null);
+    const res = await call(VALID_UUID);
+    expect(res.status).toBe(401);
+    expect(zipMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 for a non-uuid id and never hits the export", async () => {

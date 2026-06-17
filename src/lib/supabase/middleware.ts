@@ -1,8 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Oeffentliche Pfade — kein Auth-Redirect
-const PUBLIC_PATHS = ["/login", "/signup", "/auth"];
+// Oeffentliche Pfade — kein Auth-Redirect.
+// Single-User V1: /signup ist BEWUSST nicht oeffentlich (keine Selbst-
+// Registrierung). Die Signup-Seite ist entfernt; das Konto wird im Supabase-
+// Dashboard provisioniert. Fuer vollen Schutz dort zusaetzlich "Enable email
+// signups" deaktivieren (Code kann den Auth-API-Endpunkt nicht abschalten).
+const PUBLIC_PATHS = ["/login", "/auth"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname.startsWith(path));
@@ -45,8 +49,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Eingeloggt + auf Login/Signup → Redirect zu Dashboard
-  if (user && (pathname === "/login" || pathname === "/signup")) {
+  // Eingeloggt + auf Login → Redirect zu Dashboard
+  if (user && pathname === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);

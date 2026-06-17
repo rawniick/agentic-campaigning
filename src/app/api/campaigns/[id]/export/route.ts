@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db/server";
+import { getAuthUser } from "@/lib/auth/get-user";
 import { exportCampaignZip, EmptyExportError } from "@/lib/export/exportCampaignZip";
 import { fetchAssetBytesFromUrl } from "@/lib/export/fetchAssetBytes";
 
@@ -27,6 +28,16 @@ export async function GET(
     );
   }
   const campaignId = parsed.data;
+
+  // Single-User-Lockdown: API-Routen pruefen Auth explizit (sauberer 401 statt
+  // HTML-Redirect; Defense-in-depth zusaetzlich zum Middleware-Redirect).
+  const user = await getAuthUser();
+  if (!user) {
+    return new Response(JSON.stringify({ error: "Nicht autorisiert" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const zip = await exportCampaignZip(
