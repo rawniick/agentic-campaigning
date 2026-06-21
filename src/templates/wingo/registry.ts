@@ -26,6 +26,10 @@ export interface TemplateProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: string;
+  // 'urgency' (Flash Sale, Default) faerbt den Preis im Brand-Akzent; 'neutral'
+  // (Standard) rendert ihn dezent (secondary). Wird vom Orchestrator via
+  // emphasisForArt(campaign.art) abgeleitet und an die Templates durchgereicht.
+  emphasis?: Emphasis;
   // Pflicht bei hero.source === 'ai'. resolveAiLabelConfig liefert null wenn die
   // Brand kein Label registriert hat — in dem Fall lassen Templates das Asset weg.
   aiLabel?: AiLabelConfig;
@@ -35,72 +39,51 @@ export type TemplateComponent = (props: TemplateProps) => ReactElement;
 
 export type CampaignArt = "flash_sale" | "standard";
 
+export type Emphasis = "urgency" | "neutral";
+
+// Kampagnentyp -> Preis-Emphasis: flash_sale faerbt den Preis im Brand-Akzent
+// (Dringlichkeit), jeder andere Typ (z.B. standard) rendert ihn neutral. Eine
+// Quelle der Wahrheit fuer beide Render-Pfade (44er-Multiplex + Gate-4-Einzelrender).
+export function emphasisForArt(art: CampaignArt): Emphasis {
+  return art === "flash_sale" ? "urgency" : "neutral";
+}
+
 interface TemplateEntry {
   formatCode: string;
   campaignArt: CampaignArt;
   component: TemplateComponent;
 }
 
-const REGISTRY: TemplateEntry[] = [
-  {
-    formatCode: "dv360_halfpage",
-    campaignArt: "flash_sale",
-    component: FlashSaleHalfpage as TemplateComponent,
-  },
-  {
-    formatCode: "dv360_rectangle",
-    campaignArt: "flash_sale",
-    component: FlashSaleRectangle as TemplateComponent,
-  },
-  {
-    formatCode: "dv360_billboard",
-    campaignArt: "flash_sale",
-    component: FlashSaleBillboard as TemplateComponent,
-  },
-  {
-    formatCode: "meta_image",
-    campaignArt: "flash_sale",
-    component: FlashSaleMetaImage as TemplateComponent,
-  },
-  {
-    formatCode: "dv360_ricchi",
-    campaignArt: "flash_sale",
-    component: FlashSaleRicchi as TemplateComponent,
-  },
-  {
-    formatCode: "dv360_wideboard_xl",
-    campaignArt: "flash_sale",
-    component: FlashSaleWideboard as TemplateComponent,
-  },
+// Die 11 V1-Format-Layouts. Diese Komponenten sind format-spezifisch (Dimension +
+// Slot-Anordnung), NICHT kampagnentyp-spezifisch: der Flash-Sale-vs-Standard-
+// Unterschied ist allein das Emphasis-Treatment (Preis im Akzent vs. neutral),
+// das der Orchestrator zur Render-Zeit ueber die `emphasis`-Prop setzt. Die
+// FlashSale*-Benennung ist historisch (V1.0 war single-art).
+const FORMAT_LAYOUTS: ReadonlyArray<{ formatCode: string; component: TemplateComponent }> = [
+  { formatCode: "dv360_halfpage", component: FlashSaleHalfpage as TemplateComponent },
+  { formatCode: "dv360_rectangle", component: FlashSaleRectangle as TemplateComponent },
+  { formatCode: "dv360_billboard", component: FlashSaleBillboard as TemplateComponent },
+  { formatCode: "meta_image", component: FlashSaleMetaImage as TemplateComponent },
+  { formatCode: "dv360_ricchi", component: FlashSaleRicchi as TemplateComponent },
+  { formatCode: "dv360_wideboard_xl", component: FlashSaleWideboard as TemplateComponent },
   // 1200x628 — same component, three distribution channels.
-  {
-    formatCode: "google_pmax_static",
-    campaignArt: "flash_sale",
-    component: FlashSaleLandscape as TemplateComponent,
-  },
-  {
-    formatCode: "google_discovery",
-    campaignArt: "flash_sale",
-    component: FlashSaleLandscape as TemplateComponent,
-  },
-  {
-    formatCode: "reddit_link_image",
-    campaignArt: "flash_sale",
-    component: FlashSaleLandscape as TemplateComponent,
-  },
-  {
-    formatCode: "google_sea_ad_ext",
-    campaignArt: "flash_sale",
-    component: FlashSaleSquare as TemplateComponent,
-  },
+  { formatCode: "google_pmax_static", component: FlashSaleLandscape as TemplateComponent },
+  { formatCode: "google_discovery", component: FlashSaleLandscape as TemplateComponent },
+  { formatCode: "reddit_link_image", component: FlashSaleLandscape as TemplateComponent },
+  { formatCode: "google_sea_ad_ext", component: FlashSaleSquare as TemplateComponent },
   // 1080x1920 — TikTok identische Dimension wie Meta Image. Reuse erlaubt
   // brand-/format-spezifische Filenames bei identischem Layout.
-  {
-    formatCode: "tiktok_image",
-    campaignArt: "flash_sale",
-    component: FlashSaleMetaImage as TemplateComponent,
-  },
+  { formatCode: "tiktok_image", component: FlashSaleMetaImage as TemplateComponent },
 ];
+
+// V1 unterstuetzte Kampagnentypen — jeder teilt sich dieselben Format-Layouts.
+// Neue Arten mit eigenem Layout werden hier NICHT erfasst (dann braucht es
+// art-spezifische Eintraege statt der geteilten FORMAT_LAYOUTS).
+const SUPPORTED_ARTS: readonly CampaignArt[] = ["flash_sale", "standard"];
+
+const REGISTRY: TemplateEntry[] = SUPPORTED_ARTS.flatMap((campaignArt) =>
+  FORMAT_LAYOUTS.map((layout) => ({ ...layout, campaignArt }))
+);
 
 export function findTemplate(
   formatCode: string,

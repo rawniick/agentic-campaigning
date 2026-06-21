@@ -37,16 +37,22 @@ describe("template registry contract", () => {
     if (db) await db.close();
   });
 
-  it("every V1 format_specs row has a registered flash_sale template", async () => {
-    const v1Formats = await getV1Formats(db);
-    const registered = new Set(listRegisteredFormatCodes("flash_sale"));
+  // V1.1: jeder V1-Format-Code muss fuer JEDEN unterstuetzten Kampagnentyp ein
+  // Template haben (flash_sale UND standard). Fehlt ein Eintrag, rendert der
+  // Multiplexer fuer diese Art 0 Assets — das faengt der Contract hier ab.
+  it.each(["flash_sale", "standard"] as const)(
+    "every V1 format_specs row has a registered %s template",
+    async (art) => {
+      const v1Formats = await getV1Formats(db);
+      const registered = new Set(listRegisteredFormatCodes(art));
 
-    const missing = v1Formats
-      .map((f) => f.code)
-      .filter((code) => !registered.has(code));
+      const missing = v1Formats
+        .map((f) => f.code)
+        .filter((code) => !registered.has(code));
 
-    expect(missing).toEqual([]);
-  });
+      expect(missing).toEqual([]);
+    }
+  );
 
   it("covers exactly 11 V1 formats (V1 scope guard)", async () => {
     const v1Formats = await getV1Formats(db);

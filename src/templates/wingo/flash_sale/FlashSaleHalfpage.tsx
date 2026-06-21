@@ -24,6 +24,7 @@ export interface FlashSaleHalfpageProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleHalfpageVariant;
+  emphasis?: "urgency" | "neutral";
   aiLabel?: AiLabelConfig;
 }
 
@@ -94,7 +95,7 @@ export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
         display: "flex",
         alignItems: "baseline",
         padding: "8px 16px 0 16px",
-        color: primary,
+        color: props.emphasis === "neutral" ? secondary : primary,
       }}
     >
       <span style={{ fontSize: 44, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>

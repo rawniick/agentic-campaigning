@@ -50,7 +50,7 @@ export function BriefForm({ products }: Props) {
     const brief: Brief = {
       kampagne: {
         name: String(formData.get("kampagne_name")),
-        art: "flash_sale",
+        art: (formData.get("art") ?? "flash_sale") as Brief["kampagne"]["art"],
         datum_von: String(formData.get("datum_von")),
         datum_bis: String(formData.get("datum_bis")),
         produkt_kategorie: product.category,
@@ -125,9 +125,22 @@ export function BriefForm({ products }: Props) {
             <Input id="datum_bis" name="datum_bis" type="date" required />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Art = <strong>Flash Sale</strong> (V1 Tracer fix).
-        </p>
+        <div className="space-y-2">
+          <Label htmlFor="art">Kampagnentyp *</Label>
+          <select
+            id="art"
+            name="art"
+            className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
+            defaultValue="flash_sale"
+          >
+            <option value="flash_sale">Flash Sale (Preis im Akzent)</option>
+            <option value="standard">Standard (neutraler Ton)</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Flash Sale betont den Preis (Akzentfarbe); Standard rendert ihn neutral
+            und nutzt einen sachlichen Copy-Ton.
+          </p>
+        </div>
       </section>
 
       {/* Sektion 2: Produkt */}

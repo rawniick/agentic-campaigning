@@ -25,6 +25,7 @@ export interface FlashSaleBillboardProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleBillboardVariant;
+  emphasis?: "urgency" | "neutral";
   aiLabel?: AiLabelConfig;
 }
 
@@ -112,7 +113,7 @@ export function FlashSaleBillboard(props: FlashSaleBillboardProps): ReactElement
         gap: 16,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", color: primary }}>
+      <div style={{ display: "flex", alignItems: "baseline", color: props.emphasis === "neutral" ? secondary : primary }}>
         <span style={{ fontSize: 42, fontWeight: 700, lineHeight: 1 }}>
           {props.pricePromo}
         </span>

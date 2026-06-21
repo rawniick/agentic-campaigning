@@ -5,7 +5,8 @@ import type { BrandConfig } from "../brand/loadBrand";
 import { transitionGate, type CampaignState } from "../state/transitionGate";
 import { createAsset } from "../db/queries/assets";
 import { renderToPng as defaultRenderToPng } from "../render/renderToPng";
-import { FlashSaleHalfpage, type FlashSaleHalfpageVariant } from "../../templates/wingo/flash_sale/FlashSaleHalfpage";
+import React from "react";
+import { findTemplate, emphasisForArt, type CampaignArt } from "../../templates/wingo/registry";
 
 export interface FinalRenderInput {
   campaignId: string;
@@ -17,6 +18,7 @@ export interface FinalRenderInput {
 
 interface GateData {
   brand_id: string;
+  art: CampaignArt;
   produkt_kategorie: string;
   price_promo: string;
   price_suffix: string;
@@ -34,6 +36,7 @@ interface GateData {
 async function loadGateData(db: Db, campaignId: string): Promise<GateData> {
   const res = await db.query<{
     brand_id: string;
+    art: string;
     produkt_kategorie: string;
     price_promo: string;
     price_suffix: string;
@@ -48,7 +51,7 @@ async function loadGateData(db: Db, campaignId: string): Promise<GateData> {
     master_format: string | null;
   }>(
     `SELECT
-        c.brand_id, c.produkt_kategorie, c.price_promo::text AS price_promo, c.price_suffix,
+        c.brand_id, c.art, c.produkt_kategorie, c.price_promo::text AS price_promo, c.price_suffix,
         cc.language, cc.headlines, cc.subline, cc.cta_label,
         cc.selected_headline_idx, cc.disclaimer_ids,
         ch.storage_url AS hero_url,
@@ -70,6 +73,7 @@ async function loadGateData(db: Db, campaignId: string): Promise<GateData> {
 
   return {
     brand_id: row.brand_id,
+    art: row.art as CampaignArt,
     produkt_kategorie: row.produkt_kategorie,
     price_promo: row.price_promo,
     price_suffix: row.price_suffix,
@@ -100,10 +104,16 @@ async function loadDisclaimerText(
           ? "text_it"
           : "text_en";
   const res = await db.query<{ text: string }>(
-    `SELECT ${col} AS text FROM disclaimers WHERE id = ANY($1::uuid[]) ORDER BY slug LIMIT 1`,
+    `SELECT ${col} AS text FROM disclaimers WHERE id = ANY($1::uuid[]) ORDER BY slug`,
     [ids]
   );
-  return res.rows[0]?.text ?? "";
+  // ALLE zutreffenden Disclaimer rendern (Compliance: ein Produkt kann mehrere
+  // Pflicht-Hinweise haben, z.B. 5G-Netz + Preis-/Vertrags-Disclaimer) — nicht
+  // nur der erste. Separator " · " konsistent mit runMultiplex.
+  return res.rows
+    .map((r) => r.text)
+    .filter((t): t is string => Boolean(t))
+    .join(" · ");
 }
 
 // Gate-4-Action: Final Render. Pass-through Compliance bleibt erhalten —
@@ -142,20 +152,30 @@ export async function finalRender(
       data.language
     );
 
-    const jsx = (
-      <FlashSaleHalfpage
-        tokens={input.brandConfig.tokens}
-        headline={data.headlines[data.selected_headline_idx]}
-        subline={data.subline}
-        pricePromo={Number(data.price_promo).toFixed(2)}
-        priceSuffix={data.price_suffix}
-        ctaLabel={data.cta_label}
-        disclaimer={disclaimerText}
-        heroImageUrl={data.hero_url}
-        logoSrc={input.logoUrl}
-        variant={data.variant as FlashSaleHalfpageVariant}
-      />
-    );
+    // Template + Emphasis aus dem Kampagnentyp ableiten (Registry-Lookup statt
+    // hartverdrahteter Halfpage — funktioniert fuer jedes Master-Format und
+    // beide Arten; flash_sale = Preis im Akzent, standard = neutral).
+    const Component = findTemplate(data.master_format, data.art);
+    if (!Component) {
+      throw new Error(
+        `Kein Template fuer Format ${data.master_format} (art=${data.art})`
+      );
+    }
+    const emphasis = emphasisForArt(data.art);
+
+    const jsx = React.createElement(Component, {
+      tokens: input.brandConfig.tokens,
+      headline: data.headlines[data.selected_headline_idx],
+      subline: data.subline,
+      pricePromo: Number(data.price_promo).toFixed(2),
+      priceSuffix: data.price_suffix,
+      ctaLabel: data.cta_label,
+      disclaimer: disclaimerText,
+      heroImageUrl: data.hero_url,
+      logoSrc: input.logoUrl,
+      variant: data.variant,
+      emphasis,
+    });
 
     const renderImpl = input.renderToPng ?? defaultRenderToPng;
     const png = await renderImpl(jsx, { width: format.width, height: format.height });

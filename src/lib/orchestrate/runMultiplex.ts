@@ -20,6 +20,7 @@ import {
 } from "../copy/translateCampaignCopy";
 import {
   findTemplate,
+  emphasisForArt,
   type CampaignArt,
   type TemplateComponent,
 } from "../../templates/wingo/registry";
@@ -271,6 +272,8 @@ async function renderOneFormat(
       ? (await resolveAiLabelConfig(db, brandConfig.brand.id, format)) ?? undefined
       : undefined;
 
+  const emphasis = emphasisForArt(data.kampagne_art);
+
   // heroSrc ist bereits die eingebettete Data-URI (einmal pro Lauf aufgeloest, da
   // alle 44 Assets denselben Hero teilen) — kein Fetch pro Format.
   const jsx = React.createElement(component, {
@@ -284,6 +287,7 @@ async function renderOneFormat(
     heroImageUrl: heroSrc,
     logoSrc: logoUrl,
     variant: data.variant,
+    emphasis,
     aiLabel,
   });
 
@@ -402,6 +406,15 @@ export async function runMultiplex(
     for (const format of v1Formats) {
       const component = findTemplate(format.code, kampagneArt);
       if (component) renderableTargets.push({ format, component });
+    }
+
+    // Fail-loud + klar, wenn der Kampagnentyp (noch) keine Templates hat —
+    // sonst landete die Kampagne mit generischem "kein Asset gerendert" stumm
+    // im Fail-State (z.B. eine im Brief-Enum erlaubte, aber unregistrierte Art).
+    if (renderableTargets.length === 0) {
+      throw new Error(
+        `Kein Template fuer Kampagnentyp '${kampagneArt}' registriert — keine Formate renderbar`
+      );
     }
 
     // Cartesian product: jedes Format x jede Sprache

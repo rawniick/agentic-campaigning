@@ -23,6 +23,7 @@ export interface FlashSaleLandscapeProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleLandscapeVariant;
+  emphasis?: "urgency" | "neutral";
   aiLabel?: AiLabelConfig;
 }
 
@@ -106,7 +107,7 @@ export function FlashSaleLandscape(props: FlashSaleLandscapeProps): ReactElement
         gap: 28,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", color: primary }}>
+      <div style={{ display: "flex", alignItems: "baseline", color: props.emphasis === "neutral" ? secondary : primary }}>
         <span style={{ fontSize: 88, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
         <span style={{ fontSize: 28, fontWeight: 400, marginLeft: 8 }}>{props.priceSuffix}</span>
       </div>

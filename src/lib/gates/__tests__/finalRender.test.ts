@@ -169,6 +169,37 @@ describe("finalRender (Gate 4)", () => {
     expect(jsx.props.disclaimer).toBe("5G im Swisscom Netz");
   });
 
+  it("renders ALL matched disclaimers, not just the first (compliance)", async () => {
+    const d2 = await db.query<{ id: string }>(
+      `INSERT INTO disclaimers
+         (brand_id, slug, name, conditions_json, applies_to_categories,
+          text_de, text_fr, text_it, text_en)
+         VALUES ($1, 'zweiter', 'Zweiter', '{}'::jsonb, ARRAY['mobile'],
+                 'Zweiter Hinweis DE', 'fr2', 'it2', 'en2')
+         RETURNING id`,
+      [wingoId]
+    );
+    await db.query(
+      `UPDATE campaign_copy SET disclaimer_ids = ARRAY[$1, $2]::uuid[]
+         WHERE campaign_id = $3 AND language = 'de'`,
+      [disclaimerId, d2.rows[0].id, campaignId]
+    );
+
+    const storage = createInMemoryStorage();
+    const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+    await finalRender(db, storage, {
+      campaignId,
+      brandConfig,
+      logoUrl: "memory://logo.svg",
+      renderToPng: renderSpy,
+    });
+
+    const jsx = renderSpy.mock.calls[0][0] as { props: { disclaimer: string } };
+    expect(jsx.props.disclaimer).toContain("5G im Swisscom Netz");
+    expect(jsx.props.disclaimer).toContain("Zweiter Hinweis DE");
+  });
+
   it("rejects if not in final_pending state", async () => {
     await db.query(`UPDATE campaigns SET status = 'done' WHERE id = $1`, [campaignId]);
     const storage = createInMemoryStorage();
@@ -180,5 +211,40 @@ describe("finalRender (Gate 4)", () => {
         logoUrl: "memory://logo.svg",
       })
     ).rejects.toThrow(/Invalid transition|state/i);
+  });
+
+  describe("campaign art emphasis", () => {
+    it("threads emphasis='urgency' into the render for a flash_sale campaign", async () => {
+      const storage = createInMemoryStorage();
+      const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+      await finalRender(db, storage, {
+        campaignId,
+        brandConfig,
+        logoUrl: "memory://logo.svg",
+        renderToPng: renderSpy,
+      });
+
+      const jsx = renderSpy.mock.calls[0][0] as { props: { emphasis?: string } };
+      expect(jsx.props.emphasis).toBe("urgency");
+    });
+
+    it("threads emphasis='neutral' into the render for a standard campaign", async () => {
+      await db.query(`UPDATE campaigns SET art = 'standard' WHERE id = $1`, [
+        campaignId,
+      ]);
+      const storage = createInMemoryStorage();
+      const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+      await finalRender(db, storage, {
+        campaignId,
+        brandConfig,
+        logoUrl: "memory://logo.svg",
+        renderToPng: renderSpy,
+      });
+
+      const jsx = renderSpy.mock.calls[0][0] as { props: { emphasis?: string } };
+      expect(jsx.props.emphasis).toBe("neutral");
+    });
   });
 });

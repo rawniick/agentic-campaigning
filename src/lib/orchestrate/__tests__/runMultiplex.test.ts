@@ -697,6 +697,35 @@ describe("runMultiplex", () => {
       });
     });
 
+    it("renders 44 brand-conform assets for a standard campaign (parity with flash_sale)", async () => {
+      await db.query(`UPDATE campaigns SET art = 'standard' WHERE id = $1`, [
+        campaignId,
+      ]);
+      const storage = createInMemoryStorage();
+
+      const result = await runMultiplex(db, storage, {
+        campaignId,
+        brandConfig,
+        logoUrl: "memory://logo.svg",
+        renderToPng: conformantRenderer(),
+        logoIsPlaceholder: false,
+      });
+
+      const expectedCount = listRegisteredFormatCodes("standard").length * 4;
+      expect(expectedCount).toBe(44);
+      expect(result.assets).toHaveLength(expectedCount);
+      expect(result.failures).toHaveLength(0);
+
+      // Der deterministische Konformitaets-Gate gilt fuer Standard identisch:
+      // alle 44 muessen pass=true sein (Brand-Farbe via CTA/Logo trotz neutralem Preis).
+      const rows = await db.query<{ conformity_pass: boolean | null }>(
+        `SELECT conformity_pass FROM assets WHERE campaign_id = $1`,
+        [campaignId]
+      );
+      expect(rows.rows).toHaveLength(expectedCount);
+      expect(rows.rows.every((r) => r.conformity_pass === true)).toBe(true);
+    });
+
     it("loads the matched disclaimer text per language, not via LLM translation", async () => {
       const storage = createInMemoryStorage();
       const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
@@ -727,6 +756,78 @@ describe("runMultiplex", () => {
       expect(seen.fr).toBe("fr");
       expect(seen.it).toBe("it");
       expect(seen.en).toBe("en");
+    });
+  });
+
+  describe("campaign art emphasis", () => {
+    // Der Kampagnentyp steuert das Preis-Emphasis-Treatment: flash_sale = Akzent
+    // (Dringlichkeit), standard = neutral. Der Orchestrator leitet das aus
+    // campaigns.art ab und reicht es als `emphasis`-Prop an jedes Template durch.
+    it("threads emphasis='urgency' into template props for a flash_sale campaign", async () => {
+      const storage = createInMemoryStorage();
+      const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+      await runMultiplex(db, storage, {
+        campaignId,
+        brandConfig,
+        logoUrl: "memory://logo.svg",
+        renderToPng: renderSpy,
+      });
+
+      const jsx = renderSpy.mock.calls[0][0] as { props: { emphasis?: string } };
+      expect(jsx.props.emphasis).toBe("urgency");
+    });
+
+    it("threads emphasis='neutral' into template props for a standard campaign", async () => {
+      await db.query(`UPDATE campaigns SET art = 'standard' WHERE id = $1`, [
+        campaignId,
+      ]);
+
+      const storage = createInMemoryStorage();
+      const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+      await runMultiplex(db, storage, {
+        campaignId,
+        brandConfig,
+        logoUrl: "memory://logo.svg",
+        renderToPng: renderSpy,
+      });
+
+      // Alle gerenderten Assets der Standard-Kampagne sind neutral.
+      expect(renderSpy.mock.calls.length).toBeGreaterThan(0);
+      for (const [node] of renderSpy.mock.calls as Array<
+        [{ props: { emphasis?: string } }, unknown]
+      >) {
+        expect(node.props.emphasis).toBe("neutral");
+      }
+    });
+
+    it("fails loud + clear when the campaign art has no registered templates", async () => {
+      // 'regio' ist im Brief-Enum, aber (noch) ohne Templates -> 0 renderbare
+      // Formate. Statt eines generischen "kein Asset gerendert" muss der Fehler
+      // den Kampagnentyp nennen (sonst landet die Kampagne stumm im Fail-State).
+      await db.query(`UPDATE campaigns SET art = 'regio' WHERE id = $1`, [
+        campaignId,
+      ]);
+      const storage = createInMemoryStorage();
+      const renderSpy = vi.fn().mockResolvedValue(Buffer.from(PNG_SIG));
+
+      await expect(
+        runMultiplex(db, storage, {
+          campaignId,
+          brandConfig,
+          logoUrl: "memory://logo.svg",
+          renderToPng: renderSpy,
+        })
+      ).rejects.toThrow(/Kampagnentyp.*regio/);
+
+      // Bricht VOR dem Fan-out ab → kein Render-Versuch.
+      expect(renderSpy).not.toHaveBeenCalled();
+      const status = await db.query<{ status: string }>(
+        `SELECT status FROM campaigns WHERE id = $1`,
+        [campaignId]
+      );
+      expect(status.rows[0].status).toBe("failed");
     });
   });
 });

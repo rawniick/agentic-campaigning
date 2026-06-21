@@ -21,6 +21,7 @@ export interface FlashSaleSquareProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleSquareVariant;
+  emphasis?: "urgency" | "neutral";
   aiLabel?: AiLabelConfig;
 }
 
@@ -94,7 +95,7 @@ export function FlashSaleSquare(props: FlashSaleSquareProps): ReactElement {
         display: "flex",
         alignItems: "baseline",
         padding: "8px 48px 0 48px",
-        color: primary,
+        color: props.emphasis === "neutral" ? secondary : primary,
       }}
     >
       <span style={{ fontSize: 132, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>

@@ -28,6 +28,7 @@ export interface FlashSaleRectangleProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleRectangleVariant;
+  emphasis?: "urgency" | "neutral";
   aiLabel?: AiLabelConfig;
 }
 
@@ -104,7 +105,7 @@ export function FlashSaleRectangle(props: FlashSaleRectangleProps): ReactElement
         padding: "4px 12px 0 12px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", color: primary }}>
+      <div style={{ display: "flex", alignItems: "baseline", color: props.emphasis === "neutral" ? secondary : primary }}>
         <span style={{ fontSize: 26, fontWeight: 700, lineHeight: 1 }}>
           {props.pricePromo}
         </span>

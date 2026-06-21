@@ -24,6 +24,7 @@ export interface FlashSaleMetaImageProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleMetaImageVariant;
+  emphasis?: "urgency" | "neutral";
   aiLabel?: AiLabelConfig;
 }
 
@@ -102,7 +103,7 @@ export function FlashSaleMetaImage(props: FlashSaleMetaImageProps): ReactElement
         display: "flex",
         alignItems: "baseline",
         padding: "16px 64px 0 64px",
-        color: primary,
+        color: props.emphasis === "neutral" ? secondary : primary,
       }}
     >
       <span style={{ fontSize: 168, fontWeight: 700, lineHeight: 1 }}>

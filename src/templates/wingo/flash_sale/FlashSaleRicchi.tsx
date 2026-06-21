@@ -24,6 +24,7 @@ export interface FlashSaleRicchiProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleRicchiVariant;
+  emphasis?: "urgency" | "neutral";
   aiLabel?: AiLabelConfig;
 }
 
@@ -94,7 +95,7 @@ export function FlashSaleRicchi(props: FlashSaleRicchiProps): ReactElement {
         display: "flex",
         alignItems: "baseline",
         padding: "6px 14px 0 14px",
-        color: primary,
+        color: props.emphasis === "neutral" ? secondary : primary,
       }}
     >
       <span style={{ fontSize: 32, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>

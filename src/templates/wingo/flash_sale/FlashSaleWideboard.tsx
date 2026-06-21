@@ -21,6 +21,7 @@ export interface FlashSaleWideboardProps {
   heroImageUrl: string;
   logoSrc: string;
   variant?: FlashSaleWideboardVariant;
+  emphasis?: "urgency" | "neutral";
   aiLabel?: AiLabelConfig;
 }
 
@@ -104,7 +105,7 @@ export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement
         gap: 24,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", color: primary }}>
+      <div style={{ display: "flex", alignItems: "baseline", color: props.emphasis === "neutral" ? secondary : primary }}>
         <span style={{ fontSize: 72, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
         <span style={{ fontSize: 24, fontWeight: 400, marginLeft: 6 }}>{props.priceSuffix}</span>
       </div>

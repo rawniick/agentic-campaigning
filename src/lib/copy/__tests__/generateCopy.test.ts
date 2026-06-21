@@ -139,6 +139,52 @@ describe("generateCopy", () => {
     }
   });
 
+  it("uses the standard voice for a standard campaign — not the flash_sale cell, not the default", async () => {
+    // Gleiche Zielgruppe (sozial), beide Art-Zellen vorhanden: der Lookup muss
+    // die art-spezifische Standard-Zelle waehlen (kein Flash-Dringlichkeitston).
+    const STANDARD_BRIEF: Brief = {
+      ...VALID_BRIEF,
+      kampagne: { ...VALID_BRIEF.kampagne, art: "standard" },
+    };
+    await db.query(
+      `INSERT INTO brand_voice_variants
+         (brand_id, kampagne_art, zielgruppe, tov_md, is_default)
+         VALUES
+           ($1, 'flash_sale', 'sozial', '# Flash Sozial Voice\n- Laut, dringlich, jetzt!', false),
+           ($1, 'standard', 'sozial', '# Standard Sozial Voice\n- Sachlich, Produktwert zuerst.', false)`,
+      [wingoId]
+    );
+    try {
+      const llm = vi.fn().mockResolvedValueOnce({
+        data: { headlines: ["A", "B", "C"], subline: "S", cta_label: "C" },
+        rawText: "{}",
+        tokensUsed: { input: 50, output: 50, total: 100 },
+        model: "claude-sonnet-4-6",
+        stopReason: "end_turn",
+      });
+
+      const result = await generateCopy(db, {
+        campaignId,
+        brief: STANDARD_BRIEF,
+        brandConfig,
+        language: "de",
+        disclaimers: [],
+        llm,
+      });
+
+      const { systemPrompt } = llm.mock.calls[0][0];
+      expect(systemPrompt).toContain("Standard Sozial Voice");
+      expect(systemPrompt).not.toContain("Flash Sozial Voice");
+      expect(systemPrompt).not.toContain("Wingo Default Voice");
+      expect(result.voiceVariant.kampagne_art).toBe("standard");
+    } finally {
+      await db.query(
+        `DELETE FROM brand_voice_variants WHERE brand_id = $1 AND is_default = false`,
+        [wingoId]
+      );
+    }
+  });
+
   it("calls the LLM with the brand TOV in the system prompt", async () => {
     const llm = vi.fn().mockResolvedValueOnce({
       data: {

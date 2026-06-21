@@ -25,6 +25,36 @@ BEGIN
     )
   ON CONFLICT DO NOTHING;
 
+  -- Standard-Kampagnen (V1.1): markengerechter NEUTRALER Ton pro Zielgruppe.
+  -- Bewusst KEIN Flash-Dringlichkeitston — Produktwert statt Preisdruck. So
+  -- faellt eine Standard-Kampagne nicht still auf den preis-getriebenen Default
+  -- zurueck. Die visuelle De-Akzentuierung des Preises macht der Renderer
+  -- (emphasis='neutral'); hier nur der Copy-Ton.
+  INSERT INTO brand_voice_variants (brand_id, kampagne_art, zielgruppe, tov_md, is_default)
+    VALUES
+      (v_wingo_id, 'standard', 'sozial',
+        '# Wingo Standard — Sozial' || chr(10) || chr(10) ||
+        '- Nahbar, frisch, Du-Form.' || chr(10) ||
+        '- Produktnutzen zuerst, kein Zeitdruck, keine Dringlichkeit.' || chr(10) ||
+        '- Schweizer Netz als Vertrauensanker.' || chr(10) ||
+        '- Kein Telco-Jargon.',
+        false),
+      (v_wingo_id, 'standard', 'rational',
+        '# Wingo Standard — Rational' || chr(10) || chr(10) ||
+        '- Sachlich, klar, vertrauenswuerdig, Du-Form.' || chr(10) ||
+        '- Fakten und Produktwert vor Preis; kein Countdown, keine Dringlichkeit.' || chr(10) ||
+        '- Schweizer Netz und Verlaesslichkeit betonen.' || chr(10) ||
+        '- Kein Telco-Jargon.',
+        false),
+      (v_wingo_id, 'standard', 'nativ',
+        '# Wingo Standard — Nativ' || chr(10) || chr(10) ||
+        '- Redaktionell, ruhig erzaehlend, Du-Form.' || chr(10) ||
+        '- Mehrwert und Kontext statt Aktionsdruck; keine Dringlichkeit.' || chr(10) ||
+        '- Schweizer Netz beilaeufig als Qualitaetszeichen.' || chr(10) ||
+        '- Kein Telco-Jargon.',
+        false)
+  ON CONFLICT DO NOTHING;
+
   -- 5G-Swisscom-Netz Disclaimer (Pflicht bei 5G-Mobile-Produkten)
   INSERT INTO disclaimers
     (brand_id, slug, name, conditions_json, applies_to_categories,
