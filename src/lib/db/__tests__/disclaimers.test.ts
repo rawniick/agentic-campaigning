@@ -83,4 +83,26 @@ describe("matchDisclaimers", () => {
     expect(mobileResult.map((d) => d.slug)).toEqual(["widerruf"]);
     expect(tvResult.map((d) => d.slug)).toEqual(["widerruf"]);
   });
+
+  it("matches despite an admin value-type typo (string \"true\" vs boolean true)", async () => {
+    await seedDisclaimer("hardware_fee", { has_hardware: "true" }, []);
+
+    const result = await matchDisclaimers(db, wingoId, {
+      category: "mobile",
+      has_hardware: true,
+    });
+
+    expect(result.map((d) => d.slug)).toEqual(["hardware_fee"]);
+  });
+
+  it("still excludes a genuinely wrong condition value (5g vs 4g)", async () => {
+    await seedDisclaimer("only_4g", { network: "4g" }, ["mobile"]);
+
+    const result = await matchDisclaimers(db, wingoId, {
+      category: "mobile",
+      network: "5g",
+    });
+
+    expect(result).toHaveLength(0);
+  });
 });

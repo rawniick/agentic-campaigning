@@ -64,6 +64,20 @@ export default function DashboardPage() {
             </Link>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Disclaimer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Pflichttexte (4 Sprachen) + Conditions-Match.
+            </p>
+            <Link href="/admin/disclaimers" className="mt-4 inline-block">
+              <Button variant="outline">Disclaimer</Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
 
       <p className="mt-12 text-xs text-muted-foreground">
