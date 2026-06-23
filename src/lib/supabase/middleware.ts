@@ -36,9 +36,12 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getUser() robust: ein defektes/abgelaufenes Session-Cookie (z.B. aus einem
+  // anderen Supabase-Projekt nach Instanz-Wechsel) wirft hier sonst und liesse
+  // JEDE Seite mit 500 crashen. Fehler -> als nicht-eingeloggt behandeln
+  // (Login-Redirect), statt die ganze App zu killen.
+  const authRes = await supabase.auth.getUser().catch(() => null);
+  const user = authRes?.data.user ?? null;
 
   const { pathname } = request.nextUrl;
 
