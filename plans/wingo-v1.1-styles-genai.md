@@ -32,18 +32,19 @@ hat. Vorlauf: Ship-Härtung + Deploy siehe [`wingo-hardening.md`](./wingo-harden
   `secondary`/`background` auf echte Werte. Verifiziert: deutscher Text + Preis + echtes
   Logo + Koralle-Rot rendern sauber; volle Suite grün.
 
-### Phase 1 — Ship-Proof (aktuelle Templates) — NÄCHSTES
-- Headless: Brief → 44 Assets gegen die **Live-DB** `kaqxwjmzavxysxtnkdeo` mit echten
-  Brand-Assets + Hero `imagery/wingo_Launch_2026_Homeoffice_Hund`. Beweist Pipeline +
-  Standard-Style end-to-end, KO-konform (Logo/Farbe/Safezone). Output sichten.
+### Phase 1 — Ship-Proof (aktuelle Templates) ✅ (2026-06-23)
+- Headless-Runner `src/lib/orchestrate/__tests__/shipProof.live.test.ts` (gated SHIP_PROOF=1):
+  Brief → Claude-Translate → 44 Assets gegen **Live-DB** `kaqxwjmzavxysxtnkdeo` + Live-Storage,
+  Hero Homeoffice+Hund. Erster Lauf: 44/44 konform, ZIP 13 MB. Bewiesen end-to-end.
 
-### Phase 2 — Zwei-Style-System
-- Templates art-getrieben: **Flash Sale** = roter BG (`#FF5759`) + weisses Logo
-  (`wingo-lockup-white@3x.png`) + Blob-Preiscontainer + Person-Hero; **Standard** = grauer
-  BG (heutiger Look). BG/Logo/Treatment aus `art` ableiten (nicht hardcoden →
-  tokens/registry-getrieben). Frontend: Kampagnentyp-Auswahl steuert den Style sichtbar.
-- Brand-Farben aus `tokens.json` ziehen statt hardcoden (Schema um `secondary`,
-  `background_primary` erweitern — laut CLAUDE.md ohnehin Pflicht-Tokens).
+### Phase 2 — Zwei-Style-System ✅ (2026-06-23, commits 6be2263 + 70662e5)
+- `campaignStyle.ts`: `styleForArt(art, tokens)` → Flash Sale = roter BG + weisses Logo
+  (`wingo-lockup-white@3x.png`) + weisser Text/Preis + weisser CTA-Button; Standard = grauer
+  BG + dunkel + Rot-Akzent. 8 Templates via `resolveTemplateStyle(props)` (Farben aus dem
+  Style, nicht mehr hardcoded). `resolveLogoSrc`-Varianten (white/colour). Orchestrator +
+  Gate-Actions art-getrieben. Frontend-Kampagnentyp-Selektor steuert den Look (BriefForm).
+  Schema um `secondary`/`background_primary` erweitert. Live-verifiziert (flash 44/44 konform,
+  weisses Logo). NICHT umgesetzt: Blob-Preiscontainer + Person-Hero-Cutout (Refinement 2b).
 
 ### Phase 3 — AI-Gen fal-Provider-Layer (Bild-only, hinter Flag)
 - `src/lib/imagegen/`: `types.ts` (`ImageProvider`, analog `EmbeddingProvider`),
