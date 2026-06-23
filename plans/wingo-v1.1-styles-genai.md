@@ -44,7 +44,16 @@ hat. Vorlauf: Ship-Härtung + Deploy siehe [`wingo-hardening.md`](./wingo-harden
   Style, nicht mehr hardcoded). `resolveLogoSrc`-Varianten (white/colour). Orchestrator +
   Gate-Actions art-getrieben. Frontend-Kampagnentyp-Selektor steuert den Look (BriefForm).
   Schema um `secondary`/`background_primary` erweitert. Live-verifiziert (flash 44/44 konform,
-  weisses Logo). NICHT umgesetzt: Blob-Preiscontainer + Person-Hero-Cutout (Refinement 2b).
+  weisses Logo).
+
+### Phase 2b — Flash-Style verfeinern: Stern-Blob ✅ (2026-06-23, commits 170ecf7 + 66b3533)
+- Weisser Wingo-Stern als Preis-Blob (`wingo-stern-white@3x.png`, via Gruen-Kanal-Chroma-Key
+  generiert). `resolveStarBlobSrc` + `style.priceInBlob` + Orchestrator-Wiring (`resolvePriceBlob`).
+  Blob live in allen Flash-Formaten mit genug Platz (Halfpage, MetaImage, Landscape, Billboard,
+  Rectangle, Wideboard); Square + Ricchi zu eng -> plain Preis. Alle 8 distinkten Templates
+  visuell verifiziert, 44/44 konform.
+- **OFFEN (2b Teil 2):** freigestellte Person-Hero (Cutout auf rotem BG statt rechteckigem Foto)
+  — braucht transparente Hero-PNGs von Nick.
 
 ### Phase 3 — AI-Gen fal-Provider-Layer (Bild-only, hinter Flag)
 - `src/lib/imagegen/`: `types.ts` (`ImageProvider`, analog `EmbeddingProvider`),
