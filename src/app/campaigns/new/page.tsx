@@ -1,6 +1,9 @@
 import { getDb } from "@/lib/db/server";
 
 export const dynamic = "force-dynamic";
+// Submit ruft Claude (Copy-Gen) inkl. Retries — auf Vercel-Serverless mehr
+// Zeit geben als der knappe Default, damit Retries nicht am Timeout sterben.
+export const maxDuration = 60;
 
 import { getActiveBrandConfig } from "@/lib/brand/server";
 import { getProductsForBrand } from "@/lib/db/queries/products";

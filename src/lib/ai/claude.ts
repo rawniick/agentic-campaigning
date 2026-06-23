@@ -11,7 +11,10 @@ function getClient(): Anthropic {
     if (!apiKey) {
       throw new Error("ANTHROPIC_API_KEY ist nicht gesetzt");
     }
-    client = new Anthropic({ apiKey });
+    // maxRetries hoch: die Anthropic-API liefert bei Lastspitzen 529 (Overloaded)
+    // / 500 — die SDK retryt diese mit exponentiellem Backoff. 4 statt Default 2
+    // ueberbrueckt typische kurze Ueberlast-Fenster, ohne die Function zu sprengen.
+    client = new Anthropic({ apiKey, maxRetries: 4 });
   }
   return client;
 }

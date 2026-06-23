@@ -80,14 +80,29 @@ export async function submitBriefAction(input: SubmitBriefArgs) {
     brandConfig.brand.id,
     productContext
   );
-  const copy = await generateCopy(db, {
-    campaignId: campaign.id,
-    brief,
-    brandConfig,
-    language: "de",
-    disclaimers,
-    llm: claudeForCopy,
-  });
+  let copy: Awaited<ReturnType<typeof generateCopy>>;
+  try {
+    copy = await generateCopy(db, {
+      campaignId: campaign.id,
+      brief,
+      brandConfig,
+      language: "de",
+      disclaimers,
+      llm: claudeForCopy,
+    });
+  } catch (e) {
+    // Copy-Generierung (Anthropic) fehlgeschlagen (z.B. 529 Overloaded / 500) —
+    // die frisch angelegte Kampagne aufraeumen statt einen Halb-Zustand zu
+    // hinterlassen, und eine KLARE Meldung werfen statt eines generischen 500.
+    await db.query(`DELETE FROM audit_log WHERE campaign_id = $1`, [campaign.id]);
+    await db.query(`DELETE FROM campaign_briefs WHERE campaign_id = $1`, [campaign.id]);
+    await db.query(`DELETE FROM campaigns WHERE id = $1`, [campaign.id]);
+    const detail = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `Copy-Generierung fehlgeschlagen — die Anthropic-API ist momentan ueberlastet oder gestoert. ` +
+        `Bitte in ein bis zwei Minuten erneut versuchen. (${detail.slice(0, 160)})`
+    );
+  }
 
   await writeAudit(db, {
     campaignId: campaign.id,
