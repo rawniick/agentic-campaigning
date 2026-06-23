@@ -34,8 +34,8 @@ const MAIN_H = HEIGHT - DISCLAIMER_H;
 export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement {
   const t = props.tokens;
   const primary = t.colors.primary.hex;
-  const secondary = "#1D1D1B";
-  const background = "#EFEFEF";
+  const secondary = "#292B2D";
+  const background = "#E7E7E7";
   const headlineFont = t.typography?.fonts?.headline?.family ?? "Inter";
   const variant: FlashSaleWideboardVariant = props.variant ?? "price_bottom";
 

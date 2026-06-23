@@ -44,3 +44,9 @@ next-env.d.ts
 # supabase local
 /supabase/.temp/
 /supabase/.branches/
+
+# brand-assets: uebergrosse Hero-/Hintergrund-Quellen gehoeren in den
+# hero-library Storage-Bucket, nicht ins Git (12000px-Originale, ~25MB).
+/brand-assets/wingo/imagery/
+# beschnittene Trial-Font (Demo-Satz, unbrauchbar fuer DE) — nur lokal als Referenz
+/brand-assets/wingo/fonts/radikal-trial-unusable/
