@@ -84,6 +84,18 @@ export function BriefForm({ products }: Props) {
       try {
         await submitBriefAction({ brief, productId: product.id });
       } catch (err) {
+        // submitBriefAction ruft bei Erfolg redirect() -> wirft serverseitig
+        // NEXT_REDIRECT (auf dem Client ein Error mit digest "NEXT_REDIRECT;...").
+        // NICHT abfangen, sonst bleibt die Navigation zur Kampagnen-Seite aus.
+        if (
+          err &&
+          typeof err === "object" &&
+          "digest" in err &&
+          typeof (err as { digest?: unknown }).digest === "string" &&
+          (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+        ) {
+          throw err;
+        }
         setError(err instanceof Error ? err.message : String(err));
       }
     });

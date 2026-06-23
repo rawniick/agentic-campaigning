@@ -289,11 +289,7 @@ export function GateView({
 
           <div className="rounded-md border-t pt-6">
             <h3 className="mb-3 text-sm font-semibold">Eigenes Bild hochladen</h3>
-            <form
-              action={uploadHeroGateAction}
-              className="space-y-4"
-              encType="multipart/form-data"
-            >
+            <form action={uploadHeroGateAction} className="space-y-4">
               <input type="hidden" name="campaignId" value={campaignId} />
               <div className="space-y-2">
                 <Label htmlFor="hero">Bilddatei (JPG/PNG)</Label>
