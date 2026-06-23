@@ -154,6 +154,8 @@ describe.skipIf(!process.env.SHIP_PROOF)("LIVE ship-proof (44 Assets gegen echte
       campaignId,
       brandConfig,
       logoUrl,
+      // Art-bewusste Logo-Variante (white fuer flash_sale) — wie die Gate-Action.
+      resolveLogo: (v) => resolveLogoSrc(brandConfig.tokens, "wingo", { variant: v }),
       logoIsPlaceholder: placeholder,
       translate: {
         passthroughTerms: brandConfig.glossar.passthrough_terms,

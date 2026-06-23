@@ -9,6 +9,23 @@ import { FlashSaleRicchi } from "./flash_sale/FlashSaleRicchi";
 import { FlashSaleWideboard } from "./flash_sale/FlashSaleWideboard";
 import { FlashSaleLandscape } from "./flash_sale/FlashSaleLandscape";
 import { FlashSaleSquare } from "./flash_sale/FlashSaleSquare";
+import {
+  emphasisForArt,
+  styleForArt,
+  resolveTemplateStyle,
+} from "./campaignStyle";
+import type { CampaignArt, Emphasis, CampaignStyle } from "./campaignStyle";
+
+// Re-Export, damit bestehende Importeure (Orchestrator, Tests) Stil + Art
+// weiterhin aus der registry beziehen koennen.
+export {
+  emphasisForArt,
+  styleForArt,
+  resolveTemplateStyle,
+  type CampaignArt,
+  type Emphasis,
+  type CampaignStyle,
+};
 
 // Template-Registry — mapped (formatCode, campaignArt) auf eine konkrete
 // React-Komponente. Phase 3 fuellt die 11 V1-Formate Schritt fuer Schritt.
@@ -30,23 +47,15 @@ export interface TemplateProps {
   // (Standard) rendert ihn dezent (secondary). Wird vom Orchestrator via
   // emphasisForArt(campaign.art) abgeleitet und an die Templates durchgereicht.
   emphasis?: Emphasis;
+  // Voller visueller Stil (V1.1). Vom Orchestrator via styleForArt(art) gesetzt.
+  // Fehlt er, faellt resolveTemplateStyle auf den Standard-Grau-Look + emphasis zurueck.
+  style?: CampaignStyle;
   // Pflicht bei hero.source === 'ai'. resolveAiLabelConfig liefert null wenn die
   // Brand kein Label registriert hat — in dem Fall lassen Templates das Asset weg.
   aiLabel?: AiLabelConfig;
 }
 
 export type TemplateComponent = (props: TemplateProps) => ReactElement;
-
-export type CampaignArt = "flash_sale" | "standard";
-
-export type Emphasis = "urgency" | "neutral";
-
-// Kampagnentyp -> Preis-Emphasis: flash_sale faerbt den Preis im Brand-Akzent
-// (Dringlichkeit), jeder andere Typ (z.B. standard) rendert ihn neutral. Eine
-// Quelle der Wahrheit fuer beide Render-Pfade (44er-Multiplex + Gate-4-Einzelrender).
-export function emphasisForArt(art: CampaignArt): Emphasis {
-  return art === "flash_sale" ? "urgency" : "neutral";
-}
 
 interface TemplateEntry {
   formatCode: string;

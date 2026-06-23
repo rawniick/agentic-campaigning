@@ -4,6 +4,7 @@ import {
   AiLabelOverlay,
   type AiLabelConfig,
 } from "../../../lib/render/AiLabelOverlay";
+import { resolveTemplateStyle, type CampaignStyle } from "../campaignStyle";
 
 // Wingo Flash Sale — Landscape 1200x628.
 // Geteilt von Google Performance Max, Google Discovery / Demand Gen,
@@ -24,6 +25,7 @@ export interface FlashSaleLandscapeProps {
   logoSrc: string;
   variant?: FlashSaleLandscapeVariant;
   emphasis?: "urgency" | "neutral";
+  style?: CampaignStyle;
   aiLabel?: AiLabelConfig;
 }
 
@@ -35,9 +37,7 @@ const MAIN_H = HEIGHT - DISCLAIMER_H;
 
 export function FlashSaleLandscape(props: FlashSaleLandscapeProps): ReactElement {
   const t = props.tokens;
-  const primary = t.colors.primary.hex;
-  const secondary = "#292B2D";
-  const background = "#E7E7E7";
+  const s = resolveTemplateStyle(props);
   const headlineFont = t.typography?.fonts?.headline?.family ?? "Inter";
   const variant: FlashSaleLandscapeVariant = props.variant ?? "price_bottom";
 
@@ -78,7 +78,7 @@ export function FlashSaleLandscape(props: FlashSaleLandscapeProps): ReactElement
         fontSize: 64,
         fontWeight: 700,
         lineHeight: 1.05,
-        color: secondary,
+        color: s.foreground,
         paddingBottom: 10,
       }}
     >
@@ -94,7 +94,7 @@ export function FlashSaleLandscape(props: FlashSaleLandscapeProps): ReactElement
         fontSize: 26,
         fontWeight: 400,
         lineHeight: 1.3,
-        color: secondary,
+        color: s.foreground,
         paddingBottom: 20,
       }}
     >
@@ -112,15 +112,15 @@ export function FlashSaleLandscape(props: FlashSaleLandscapeProps): ReactElement
         gap: 28,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", color: props.emphasis === "neutral" ? secondary : primary }}>
+      <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
         <span style={{ fontSize: 88, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
         <span style={{ fontSize: 28, fontWeight: 400, marginLeft: 8 }}>{props.priceSuffix}</span>
       </div>
       <div
         style={{
           display: "flex",
-          backgroundColor: primary,
-          color: "#FFFFFF",
+          backgroundColor: s.ctaBackground,
+          color: s.ctaText,
           padding: "16px 28px",
           fontSize: 22,
           fontWeight: 700,
@@ -180,7 +180,7 @@ export function FlashSaleLandscape(props: FlashSaleLandscapeProps): ReactElement
         alignItems: "center",
         fontSize: 14,
         lineHeight: 1.2,
-        color: "#525252",
+        color: s.disclaimerColor,
       }}
     >
       {props.disclaimer}
@@ -194,9 +194,9 @@ export function FlashSaleLandscape(props: FlashSaleLandscapeProps): ReactElement
         flexDirection: "column",
         width: WIDTH,
         height: HEIGHT,
-        backgroundColor: background,
+        backgroundColor: s.background,
         fontFamily: headlineFont,
-        color: secondary,
+        color: s.foreground,
         position: "relative",
         overflow: "hidden",
       }}

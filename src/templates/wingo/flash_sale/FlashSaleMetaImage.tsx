@@ -4,6 +4,7 @@ import {
   AiLabelOverlay,
   type AiLabelConfig,
 } from "../../../lib/render/AiLabelOverlay";
+import { resolveTemplateStyle, type CampaignStyle } from "../campaignStyle";
 
 // Wingo Flash Sale — Meta Image Ad 1080x1920 (Story-Format, 9:16 portrait).
 // Layout vertikal: Hero deckt obere 50% ab, dann Content-Block mit Brand + Copy.
@@ -25,6 +26,7 @@ export interface FlashSaleMetaImageProps {
   logoSrc: string;
   variant?: FlashSaleMetaImageVariant;
   emphasis?: "urgency" | "neutral";
+  style?: CampaignStyle;
   aiLabel?: AiLabelConfig;
 }
 
@@ -34,9 +36,7 @@ const HERO_HEIGHT = 1000;
 
 export function FlashSaleMetaImage(props: FlashSaleMetaImageProps): ReactElement {
   const t = props.tokens;
-  const primary = t.colors.primary.hex;
-  const secondary = "#292B2D";
-  const background = "#E7E7E7";
+  const s = resolveTemplateStyle(props);
   const headlineFont = t.typography?.fonts?.headline?.family ?? "Inter";
   const variant: FlashSaleMetaImageVariant = props.variant ?? "price_bottom";
 
@@ -78,7 +78,7 @@ export function FlashSaleMetaImage(props: FlashSaleMetaImageProps): ReactElement
         fontSize: 88,
         fontWeight: 700,
         lineHeight: 1.05,
-        color: secondary,
+        color: s.foreground,
       }}
     >
       {props.headline}
@@ -94,7 +94,7 @@ export function FlashSaleMetaImage(props: FlashSaleMetaImageProps): ReactElement
         fontSize: 42,
         fontWeight: 400,
         lineHeight: 1.25,
-        color: secondary,
+        color: s.foreground,
       }}
     >
       {props.subline}
@@ -108,7 +108,7 @@ export function FlashSaleMetaImage(props: FlashSaleMetaImageProps): ReactElement
         display: "flex",
         alignItems: "baseline",
         padding: "16px 64px 0 64px",
-        color: props.emphasis === "neutral" ? secondary : primary,
+        color: s.priceColor,
       }}
     >
       <span style={{ fontSize: 168, fontWeight: 700, lineHeight: 1 }}>
@@ -125,8 +125,8 @@ export function FlashSaleMetaImage(props: FlashSaleMetaImageProps): ReactElement
       <div
         style={{
           display: "flex",
-          backgroundColor: primary,
-          color: "#FFFFFF",
+          backgroundColor: s.ctaBackground,
+          color: s.ctaText,
           padding: "28px 56px",
           fontSize: 42,
           fontWeight: 700,
@@ -148,7 +148,7 @@ export function FlashSaleMetaImage(props: FlashSaleMetaImageProps): ReactElement
         padding: "0 64px 36px 64px",
         fontSize: 22,
         lineHeight: 1.2,
-        color: "#525252",
+        color: s.disclaimerColor,
       }}
     >
       {props.disclaimer}
@@ -167,9 +167,9 @@ export function FlashSaleMetaImage(props: FlashSaleMetaImageProps): ReactElement
         flexDirection: "column",
         width: WIDTH,
         height: HEIGHT,
-        backgroundColor: background,
+        backgroundColor: s.background,
         fontFamily: headlineFont,
-        color: secondary,
+        color: s.foreground,
         position: "relative",
         overflow: "hidden",
       }}

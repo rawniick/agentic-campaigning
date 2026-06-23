@@ -12,16 +12,31 @@ import type { BrandTokens } from "./loadTokens";
 // Solange das fehlt, wird ein font-freier Interim-Platzhalter aus der Primaerfarbe
 // rasterisiert, damit die Pipeline nicht blockiert.
 
-const PNG_CANDIDATES = ["logos/wingo-lockup@3x.png", "logos/wingo-lockup.png"];
+type LogoVariant = "colour" | "white";
+
+const PNG_CANDIDATES_BY_VARIANT: Record<LogoVariant, string[]> = {
+  colour: ["logos/wingo-lockup@3x.png", "logos/wingo-lockup.png"],
+  white: ["logos/wingo-lockup-white@3x.png", "logos/wingo-lockup-white.png"],
+};
 
 export interface ResolveLogoOptions {
   baseDir?: string;
+  // 'white' fuer dunkle/rote Hintergruende (flash_sale). Faellt auf die
+  // colour-Variante zurueck, wenn das White-Lockup fehlt. Default 'colour'.
+  variant?: LogoVariant;
 }
 
-function findLockupPath(baseDir: string, slug: string): string | null {
-  for (const rel of PNG_CANDIDATES) {
-    const p = path.join(baseDir, slug, rel);
-    if (fs.existsSync(p)) return p;
+function findLockupPath(
+  baseDir: string,
+  slug: string,
+  variant: LogoVariant = "colour"
+): string | null {
+  const order: LogoVariant[] = variant === "white" ? ["white", "colour"] : ["colour"];
+  for (const v of order) {
+    for (const rel of PNG_CANDIDATES_BY_VARIANT[v]) {
+      const p = path.join(baseDir, slug, rel);
+      if (fs.existsSync(p)) return p;
+    }
   }
   return null;
 }
@@ -33,7 +48,7 @@ export function resolveLogoSrc(
 ): string {
   const baseDir = opts.baseDir ?? path.join(process.cwd(), "brand-assets");
 
-  const found = findLockupPath(baseDir, slug);
+  const found = findLockupPath(baseDir, slug, opts.variant ?? "colour");
   if (found) {
     const b64 = fs.readFileSync(found).toString("base64");
     return `data:image/png;base64,${b64}`;
@@ -52,7 +67,8 @@ export function logoIsPlaceholder(
   opts: ResolveLogoOptions = {}
 ): boolean {
   const baseDir = opts.baseDir ?? path.join(process.cwd(), "brand-assets");
-  return findLockupPath(baseDir, slug) === null;
+  // Der Real-Logo-Gate prueft die colour-Hauptvariante (white ist optional).
+  return findLockupPath(baseDir, slug, "colour") === null;
 }
 
 // Font-freier Platzhalter: resvg rendert <text> nur mit geladenen Fonts, daher

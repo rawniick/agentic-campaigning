@@ -4,6 +4,7 @@ import {
   AiLabelOverlay,
   type AiLabelConfig,
 } from "../../../lib/render/AiLabelOverlay";
+import { resolveTemplateStyle, type CampaignStyle } from "../campaignStyle";
 
 // Wingo Flash Sale — Billboard 970x250 (Wide Horizontal).
 // Aufteilung in einer Row: Hero links 380px, Content-Spalte rechts.
@@ -26,6 +27,7 @@ export interface FlashSaleBillboardProps {
   logoSrc: string;
   variant?: FlashSaleBillboardVariant;
   emphasis?: "urgency" | "neutral";
+  style?: CampaignStyle;
   aiLabel?: AiLabelConfig;
 }
 
@@ -37,9 +39,7 @@ const MAIN_H = HEIGHT - DISCLAIMER_H;
 
 export function FlashSaleBillboard(props: FlashSaleBillboardProps): ReactElement {
   const t = props.tokens;
-  const primary = t.colors.primary.hex;
-  const secondary = "#292B2D";
-  const background = "#E7E7E7";
+  const s = resolveTemplateStyle(props);
   const headlineFont = t.typography?.fonts?.headline?.family ?? "Inter";
   const variant: FlashSaleBillboardVariant = props.variant ?? "price_bottom";
 
@@ -84,7 +84,7 @@ export function FlashSaleBillboard(props: FlashSaleBillboardProps): ReactElement
         fontSize: 32,
         fontWeight: 700,
         lineHeight: 1.1,
-        color: secondary,
+        color: s.foreground,
         paddingBottom: 4,
       }}
     >
@@ -100,7 +100,7 @@ export function FlashSaleBillboard(props: FlashSaleBillboardProps): ReactElement
         fontSize: 14,
         fontWeight: 400,
         lineHeight: 1.3,
-        color: secondary,
+        color: s.foreground,
         paddingBottom: 8,
       }}
     >
@@ -118,7 +118,7 @@ export function FlashSaleBillboard(props: FlashSaleBillboardProps): ReactElement
         gap: 16,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", color: props.emphasis === "neutral" ? secondary : primary }}>
+      <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
         <span style={{ fontSize: 42, fontWeight: 700, lineHeight: 1 }}>
           {props.pricePromo}
         </span>
@@ -129,8 +129,8 @@ export function FlashSaleBillboard(props: FlashSaleBillboardProps): ReactElement
       <div
         style={{
           display: "flex",
-          backgroundColor: primary,
-          color: "#FFFFFF",
+          backgroundColor: s.ctaBackground,
+          color: s.ctaText,
           padding: "10px 18px",
           fontSize: 14,
           fontWeight: 700,
@@ -190,7 +190,7 @@ export function FlashSaleBillboard(props: FlashSaleBillboardProps): ReactElement
         alignItems: "center",
         fontSize: 8,
         lineHeight: 1.1,
-        color: "#525252",
+        color: s.disclaimerColor,
       }}
     >
       {props.disclaimer}
@@ -204,9 +204,9 @@ export function FlashSaleBillboard(props: FlashSaleBillboardProps): ReactElement
         flexDirection: "column",
         width: WIDTH,
         height: HEIGHT,
-        backgroundColor: background,
+        backgroundColor: s.background,
         fontFamily: headlineFont,
-        color: secondary,
+        color: s.foreground,
         position: "relative",
         overflow: "hidden",
       }}

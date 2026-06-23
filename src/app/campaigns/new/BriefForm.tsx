@@ -133,12 +133,13 @@ export function BriefForm({ products }: Props) {
             className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
             defaultValue="flash_sale"
           >
-            <option value="flash_sale">Flash Sale (Preis im Akzent)</option>
-            <option value="standard">Standard (neutraler Ton)</option>
+            <option value="flash_sale">Flash Sale — roter Look</option>
+            <option value="standard">Standard — grauer Look</option>
           </select>
           <p className="text-xs text-muted-foreground">
-            Flash Sale betont den Preis (Akzentfarbe); Standard rendert ihn neutral
-            und nutzt einen sachlichen Copy-Ton.
+            Bestimmt den Look: Flash Sale = roter Vollbild-Hintergrund mit weissem
+            Logo + weissem Preis (Dringlichkeit); Standard = grauer Hintergrund mit
+            dunklem Logo und Brand-Rot als Akzent.
           </p>
         </div>
       </section>

@@ -21,7 +21,9 @@ import {
 import {
   findTemplate,
   emphasisForArt,
+  styleForArt,
   type CampaignArt,
+  type CampaignStyle,
   type TemplateComponent,
 } from "../../templates/wingo/registry";
 import React from "react";
@@ -30,6 +32,10 @@ export interface RunMultiplexInput {
   campaignId: string;
   brandConfig: BrandConfig;
   logoUrl: string;
+  // Optional art-bewusste Logo-Aufloesung: liefert das richtige Lockup je
+  // Style-Variante (white fuer flash_sale, colour fuer standard). Ohne sie wird
+  // der fixe logoUrl genutzt (Tests).
+  resolveLogo?: (variant: "colour" | "white") => string;
   // injizierbar fuer Tests
   renderToPng?: (
     node: ReactElement,
@@ -258,6 +264,7 @@ async function renderOneFormat(
   component: TemplateComponent,
   data: GateData,
   logoUrl: string,
+  style: CampaignStyle,
   renderImpl: NonNullable<RunMultiplexInput["renderToPng"]>,
   visionClient: VisionQAClient | undefined,
   maxRetries: number,
@@ -288,6 +295,7 @@ async function renderOneFormat(
     logoSrc: logoUrl,
     variant: data.variant,
     emphasis,
+    style,
     aiLabel,
   });
 
@@ -399,6 +407,11 @@ export async function runMultiplex(
     );
 
     const kampagneArt = dataPerLang[0].kampagne_art;
+    // Stil + Logo-Variante einmal pro Kampagne (art ist kampagnen-global).
+    const style = styleForArt(kampagneArt, input.brandConfig.tokens);
+    const logoUrl = input.resolveLogo
+      ? input.resolveLogo(style.logoVariant)
+      : input.logoUrl;
     const v1Formats = await getV1Formats(db);
 
     const renderableTargets: Array<{ format: FormatSpec; component: TemplateComponent }> =
@@ -446,7 +459,8 @@ export async function runMultiplex(
           format,
           component,
           data,
-          input.logoUrl,
+          logoUrl,
+          style,
           renderImpl,
           input.visionClient,
           maxRetries,
@@ -511,6 +525,7 @@ export interface RetryAssetInput {
   campaignId: string;
   brandConfig: BrandConfig;
   logoUrl: string;
+  resolveLogo?: (variant: "colour" | "white") => string;
   formatId: string;
   language: string;
   renderToPng?: RunMultiplexInput["renderToPng"];
@@ -550,6 +565,11 @@ export async function retryAsset(
     input.fetchHeroBytes ?? defaultFetchHeroBytes
   );
 
+  const style = styleForArt(data.kampagne_art, input.brandConfig.tokens);
+  const logoUrl = input.resolveLogo
+    ? input.resolveLogo(style.logoVariant)
+    : input.logoUrl;
+
   return renderOneFormat(
     db,
     storage,
@@ -558,7 +578,8 @@ export async function retryAsset(
     format,
     component,
     data,
-    input.logoUrl,
+    logoUrl,
+    style,
     renderImpl,
     input.visionClient,
     input.maxRenderRetries ?? 2,

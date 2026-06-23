@@ -125,6 +125,8 @@ export async function finalRenderGateAction(formData: FormData) {
     campaignId,
     brandConfig: brand,
     logoUrl,
+    // Art-bewusste Logo-Variante: white fuer flash_sale (roter BG), colour fuer standard.
+    resolveLogo: (v) => resolveLogoSrc(brand.tokens, brand.brand.slug, { variant: v }),
     // Fliesst in den deterministischen Konformitaets-Gate: solange das echte
     // Wingo-Lockup fehlt, sind die Assets nicht brand-konform und werden vom
     // ZIP-Export geblockt (KO-Kriterium).
@@ -164,6 +166,7 @@ export async function retryAssetGateAction(formData: FormData) {
     campaignId,
     brandConfig: brand,
     logoUrl,
+    resolveLogo: (v) => resolveLogoSrc(brand.tokens, brand.brand.slug, { variant: v }),
     logoIsPlaceholder: logoIsPlaceholder(brand.brand.slug),
     formatId,
     language,

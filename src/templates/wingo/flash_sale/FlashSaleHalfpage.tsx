@@ -4,6 +4,7 @@ import {
   AiLabelOverlay,
   type AiLabelConfig,
 } from "../../../lib/render/AiLabelOverlay";
+import { resolveTemplateStyle, type CampaignStyle } from "../campaignStyle";
 
 // Wingo Flash Sale — Display Halfpage 300x600 (DV360)
 // Satori-kompatibel: ausschliesslich Inline-Styles. Layout-Variants:
@@ -25,6 +26,7 @@ export interface FlashSaleHalfpageProps {
   logoSrc: string;
   variant?: FlashSaleHalfpageVariant;
   emphasis?: "urgency" | "neutral";
+  style?: CampaignStyle;
   aiLabel?: AiLabelConfig;
 }
 
@@ -33,9 +35,7 @@ const HEIGHT = 600;
 
 export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
   const t = props.tokens;
-  const primary = t.colors.primary.hex;
-  const secondary = "#292B2D";
-  const background = "#E7E7E7";
+  const s = resolveTemplateStyle(props);
   const headlineFont = t.typography?.fonts?.headline?.family ?? "Inter";
   const variant: FlashSaleHalfpageVariant = props.variant ?? "price_bottom";
 
@@ -70,7 +70,7 @@ export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
         fontSize: 22,
         fontWeight: 700,
         lineHeight: 1.15,
-        color: secondary,
+        color: s.foreground,
       }}
     >
       {props.headline}
@@ -86,7 +86,7 @@ export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
         fontSize: 13,
         fontWeight: 400,
         lineHeight: 1.4,
-        color: secondary,
+        color: s.foreground,
       }}
     >
       {props.subline}
@@ -100,7 +100,7 @@ export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
         display: "flex",
         alignItems: "baseline",
         padding: "8px 16px 0 16px",
-        color: props.emphasis === "neutral" ? secondary : primary,
+        color: s.priceColor,
       }}
     >
       <span style={{ fontSize: 44, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
@@ -113,8 +113,8 @@ export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
       <div
         style={{
           display: "flex",
-          backgroundColor: primary,
-          color: "#FFFFFF",
+          backgroundColor: s.ctaBackground,
+          color: s.ctaText,
           padding: "10px 18px",
           fontSize: 14,
           fontWeight: 700,
@@ -136,7 +136,7 @@ export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
         padding: "4px 16px 8px 16px",
         fontSize: 8,
         lineHeight: 1.2,
-        color: "#525252",
+        color: s.disclaimerColor,
       }}
     >
       {props.disclaimer}
@@ -155,9 +155,9 @@ export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
         flexDirection: "column",
         width: WIDTH,
         height: HEIGHT,
-        backgroundColor: background,
+        backgroundColor: s.background,
         fontFamily: headlineFont,
-        color: secondary,
+        color: s.foreground,
         position: "relative",
         overflow: "hidden",
       }}

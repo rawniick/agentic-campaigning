@@ -4,6 +4,7 @@ import {
   AiLabelOverlay,
   type AiLabelConfig,
 } from "../../../lib/render/AiLabelOverlay";
+import { resolveTemplateStyle, type CampaignStyle } from "../campaignStyle";
 
 // Wingo Flash Sale — Wideboard XL 994x500 (DV360).
 // Aspect ~2:1. Hero links 480px x 500, Content rechts mit groesserer Type-Hierarchy.
@@ -22,6 +23,7 @@ export interface FlashSaleWideboardProps {
   logoSrc: string;
   variant?: FlashSaleWideboardVariant;
   emphasis?: "urgency" | "neutral";
+  style?: CampaignStyle;
   aiLabel?: AiLabelConfig;
 }
 
@@ -33,9 +35,7 @@ const MAIN_H = HEIGHT - DISCLAIMER_H;
 
 export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement {
   const t = props.tokens;
-  const primary = t.colors.primary.hex;
-  const secondary = "#292B2D";
-  const background = "#E7E7E7";
+  const s = resolveTemplateStyle(props);
   const headlineFont = t.typography?.fonts?.headline?.family ?? "Inter";
   const variant: FlashSaleWideboardVariant = props.variant ?? "price_bottom";
 
@@ -76,7 +76,7 @@ export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement
         fontSize: 56,
         fontWeight: 700,
         lineHeight: 1.05,
-        color: secondary,
+        color: s.foreground,
         paddingBottom: 8,
       }}
     >
@@ -92,7 +92,7 @@ export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement
         fontSize: 22,
         fontWeight: 400,
         lineHeight: 1.3,
-        color: secondary,
+        color: s.foreground,
         paddingBottom: 16,
       }}
     >
@@ -110,15 +110,15 @@ export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement
         gap: 24,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", color: props.emphasis === "neutral" ? secondary : primary }}>
+      <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
         <span style={{ fontSize: 72, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
         <span style={{ fontSize: 24, fontWeight: 400, marginLeft: 6 }}>{props.priceSuffix}</span>
       </div>
       <div
         style={{
           display: "flex",
-          backgroundColor: primary,
-          color: "#FFFFFF",
+          backgroundColor: s.ctaBackground,
+          color: s.ctaText,
           padding: "14px 24px",
           fontSize: 20,
           fontWeight: 700,
@@ -178,7 +178,7 @@ export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement
         alignItems: "center",
         fontSize: 12,
         lineHeight: 1.2,
-        color: "#525252",
+        color: s.disclaimerColor,
       }}
     >
       {props.disclaimer}
@@ -192,9 +192,9 @@ export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement
         flexDirection: "column",
         width: WIDTH,
         height: HEIGHT,
-        backgroundColor: background,
+        backgroundColor: s.background,
         fontFamily: headlineFont,
-        color: secondary,
+        color: s.foreground,
         position: "relative",
         overflow: "hidden",
       }}

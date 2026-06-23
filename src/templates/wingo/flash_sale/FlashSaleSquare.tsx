@@ -4,6 +4,7 @@ import {
   AiLabelOverlay,
   type AiLabelConfig,
 } from "../../../lib/render/AiLabelOverlay";
+import { resolveTemplateStyle, type CampaignStyle } from "../campaignStyle";
 
 // Wingo Flash Sale — Square 1200x1200 (SEA Ad Extension Picture).
 // Aspect 1:1. Hero top (~640px), Content unten mit grosser Type-Hierarchy.
@@ -22,6 +23,7 @@ export interface FlashSaleSquareProps {
   logoSrc: string;
   variant?: FlashSaleSquareVariant;
   emphasis?: "urgency" | "neutral";
+  style?: CampaignStyle;
   aiLabel?: AiLabelConfig;
 }
 
@@ -31,9 +33,7 @@ const HERO_HEIGHT = 640;
 
 export function FlashSaleSquare(props: FlashSaleSquareProps): ReactElement {
   const t = props.tokens;
-  const primary = t.colors.primary.hex;
-  const secondary = "#292B2D";
-  const background = "#E7E7E7";
+  const s = resolveTemplateStyle(props);
   const headlineFont = t.typography?.fonts?.headline?.family ?? "Inter";
   const variant: FlashSaleSquareVariant = props.variant ?? "price_bottom";
 
@@ -70,7 +70,7 @@ export function FlashSaleSquare(props: FlashSaleSquareProps): ReactElement {
         fontSize: 76,
         fontWeight: 700,
         lineHeight: 1.05,
-        color: secondary,
+        color: s.foreground,
       }}
     >
       {props.headline}
@@ -86,7 +86,7 @@ export function FlashSaleSquare(props: FlashSaleSquareProps): ReactElement {
         fontSize: 34,
         fontWeight: 400,
         lineHeight: 1.25,
-        color: secondary,
+        color: s.foreground,
       }}
     >
       {props.subline}
@@ -100,7 +100,7 @@ export function FlashSaleSquare(props: FlashSaleSquareProps): ReactElement {
         display: "flex",
         alignItems: "baseline",
         padding: "8px 48px 0 48px",
-        color: props.emphasis === "neutral" ? secondary : primary,
+        color: s.priceColor,
       }}
     >
       <span style={{ fontSize: 132, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
@@ -113,8 +113,8 @@ export function FlashSaleSquare(props: FlashSaleSquareProps): ReactElement {
       <div
         style={{
           display: "flex",
-          backgroundColor: primary,
-          color: "#FFFFFF",
+          backgroundColor: s.ctaBackground,
+          color: s.ctaText,
           padding: "20px 40px",
           fontSize: 32,
           fontWeight: 700,
@@ -136,7 +136,7 @@ export function FlashSaleSquare(props: FlashSaleSquareProps): ReactElement {
         padding: "0 48px 28px 48px",
         fontSize: 18,
         lineHeight: 1.2,
-        color: "#525252",
+        color: s.disclaimerColor,
       }}
     >
       {props.disclaimer}
@@ -155,9 +155,9 @@ export function FlashSaleSquare(props: FlashSaleSquareProps): ReactElement {
         flexDirection: "column",
         width: WIDTH,
         height: HEIGHT,
-        backgroundColor: background,
+        backgroundColor: s.background,
         fontFamily: headlineFont,
-        color: secondary,
+        color: s.foreground,
         position: "relative",
         overflow: "hidden",
       }}

@@ -23,6 +23,10 @@ const LogoVariantSchema = z.object({
 const BrandTokensSchema = z.object({
   colors: z.object({
     primary: ColorTokenSchema,
+    // Optional: Fail-Fast nur auf primary. secondary/background_primary fliessen
+    // in styleForArt (Template-Hintergrund + Text); fehlen sie, greifen Defaults.
+    secondary: ColorTokenSchema.optional(),
+    background_primary: ColorTokenSchema.optional(),
   }),
   typography: z.object({
     fonts: z.object({

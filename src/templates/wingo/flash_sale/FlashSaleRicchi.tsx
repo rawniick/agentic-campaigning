@@ -4,6 +4,7 @@ import {
   AiLabelOverlay,
   type AiLabelConfig,
 } from "../../../lib/render/AiLabelOverlay";
+import { resolveTemplateStyle, type CampaignStyle } from "../campaignStyle";
 
 // Wingo Flash Sale — Ricchi Ad 320x416 (DV360 Rich Media).
 // Vertikal-Layout aehnlich Halfpage aber kuerzer (ca. 4:5).
@@ -25,6 +26,7 @@ export interface FlashSaleRicchiProps {
   logoSrc: string;
   variant?: FlashSaleRicchiVariant;
   emphasis?: "urgency" | "neutral";
+  style?: CampaignStyle;
   aiLabel?: AiLabelConfig;
 }
 
@@ -34,9 +36,7 @@ const HERO_H = 160;
 
 export function FlashSaleRicchi(props: FlashSaleRicchiProps): ReactElement {
   const t = props.tokens;
-  const primary = t.colors.primary.hex;
-  const secondary = "#292B2D";
-  const background = "#E7E7E7";
+  const s = resolveTemplateStyle(props);
   const headlineFont = t.typography?.fonts?.headline?.family ?? "Inter";
   const variant: FlashSaleRicchiVariant = props.variant ?? "price_bottom";
 
@@ -70,7 +70,7 @@ export function FlashSaleRicchi(props: FlashSaleRicchiProps): ReactElement {
         fontSize: 18,
         fontWeight: 700,
         lineHeight: 1.15,
-        color: secondary,
+        color: s.foreground,
       }}
     >
       {props.headline}
@@ -86,7 +86,7 @@ export function FlashSaleRicchi(props: FlashSaleRicchiProps): ReactElement {
         fontSize: 11,
         fontWeight: 400,
         lineHeight: 1.3,
-        color: secondary,
+        color: s.foreground,
       }}
     >
       {props.subline}
@@ -100,7 +100,7 @@ export function FlashSaleRicchi(props: FlashSaleRicchiProps): ReactElement {
         display: "flex",
         alignItems: "baseline",
         padding: "6px 14px 0 14px",
-        color: props.emphasis === "neutral" ? secondary : primary,
+        color: s.priceColor,
       }}
     >
       <span style={{ fontSize: 32, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
@@ -113,8 +113,8 @@ export function FlashSaleRicchi(props: FlashSaleRicchiProps): ReactElement {
       <div
         style={{
           display: "flex",
-          backgroundColor: primary,
-          color: "#FFFFFF",
+          backgroundColor: s.ctaBackground,
+          color: s.ctaText,
           padding: "8px 14px",
           fontSize: 12,
           fontWeight: 700,
@@ -136,7 +136,7 @@ export function FlashSaleRicchi(props: FlashSaleRicchiProps): ReactElement {
         padding: "4px 14px 8px 14px",
         fontSize: 8,
         lineHeight: 1.2,
-        color: "#525252",
+        color: s.disclaimerColor,
       }}
     >
       {props.disclaimer}
@@ -155,9 +155,9 @@ export function FlashSaleRicchi(props: FlashSaleRicchiProps): ReactElement {
         flexDirection: "column",
         width: WIDTH,
         height: HEIGHT,
-        backgroundColor: background,
+        backgroundColor: s.background,
         fontFamily: headlineFont,
-        color: secondary,
+        color: s.foreground,
         position: "relative",
         overflow: "hidden",
       }}

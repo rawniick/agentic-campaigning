@@ -4,6 +4,7 @@ import {
   AiLabelOverlay,
   type AiLabelConfig,
 } from "../../../lib/render/AiLabelOverlay";
+import { resolveTemplateStyle, type CampaignStyle } from "../campaignStyle";
 
 // Wingo Flash Sale — Display Rectangle 300x250 (DV360 MPU).
 // Layout (column, top→bottom):
@@ -29,6 +30,7 @@ export interface FlashSaleRectangleProps {
   logoSrc: string;
   variant?: FlashSaleRectangleVariant;
   emphasis?: "urgency" | "neutral";
+  style?: CampaignStyle;
   aiLabel?: AiLabelConfig;
 }
 
@@ -37,9 +39,7 @@ const HEIGHT = 250;
 
 export function FlashSaleRectangle(props: FlashSaleRectangleProps): ReactElement {
   const t = props.tokens;
-  const primary = t.colors.primary.hex;
-  const secondary = "#292B2D";
-  const background = "#E7E7E7";
+  const s = resolveTemplateStyle(props);
   const headlineFont = t.typography?.fonts?.headline?.family ?? "Inter";
   const variant: FlashSaleRectangleVariant = props.variant ?? "price_bottom";
 
@@ -76,7 +76,7 @@ export function FlashSaleRectangle(props: FlashSaleRectangleProps): ReactElement
         fontSize: 14,
         fontWeight: 700,
         lineHeight: 1.15,
-        color: secondary,
+        color: s.foreground,
       }}
     >
       {props.headline}
@@ -92,7 +92,7 @@ export function FlashSaleRectangle(props: FlashSaleRectangleProps): ReactElement
         fontSize: 10,
         fontWeight: 400,
         lineHeight: 1.3,
-        color: secondary,
+        color: s.foreground,
       }}
     >
       {props.subline}
@@ -110,7 +110,7 @@ export function FlashSaleRectangle(props: FlashSaleRectangleProps): ReactElement
         padding: "4px 12px 0 12px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", color: props.emphasis === "neutral" ? secondary : primary }}>
+      <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
         <span style={{ fontSize: 26, fontWeight: 700, lineHeight: 1 }}>
           {props.pricePromo}
         </span>
@@ -121,8 +121,8 @@ export function FlashSaleRectangle(props: FlashSaleRectangleProps): ReactElement
       <div
         style={{
           display: "flex",
-          backgroundColor: primary,
-          color: "#FFFFFF",
+          backgroundColor: s.ctaBackground,
+          color: s.ctaText,
           padding: "6px 10px",
           fontSize: 10,
           fontWeight: 700,
@@ -144,7 +144,7 @@ export function FlashSaleRectangle(props: FlashSaleRectangleProps): ReactElement
         padding: "2px 12px 6px 12px",
         fontSize: 7,
         lineHeight: 1.15,
-        color: "#525252",
+        color: s.disclaimerColor,
       }}
     >
       {props.disclaimer}
@@ -163,9 +163,9 @@ export function FlashSaleRectangle(props: FlashSaleRectangleProps): ReactElement
         flexDirection: "column",
         width: WIDTH,
         height: HEIGHT,
-        backgroundColor: background,
+        backgroundColor: s.background,
         fontFamily: headlineFont,
-        color: secondary,
+        color: s.foreground,
         position: "relative",
         overflow: "hidden",
       }}
