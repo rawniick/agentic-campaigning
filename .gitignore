@@ -50,3 +50,6 @@ next-env.d.ts
 /brand-assets/wingo/imagery/
 # beschnittene Trial-Font (Demo-Satz, unbrauchbar fuer DE) — nur lokal als Referenz
 /brand-assets/wingo/fonts/radikal-trial-unusable/
+
+# Ship-Proof-Output (generierte 44-Asset-ZIP + Samples)
+/scripts/ship-proof/
