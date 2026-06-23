@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/lib/db/server";
 import { getActiveBrandConfig } from "@/lib/brand/server";
-import { resolveLogoSrc, logoIsPlaceholder } from "@/lib/brand/resolveLogoSrc";
+import {
+  resolveLogoSrc,
+  logoIsPlaceholder,
+  resolveStarBlobSrc,
+} from "@/lib/brand/resolveLogoSrc";
 import { createSupabaseStorage } from "@/lib/storage/supabaseStorage";
 import { approveCopy } from "@/lib/gates/approveCopy";
 import { createClaudeTranslator } from "@/lib/copy/claudeTranslator";
@@ -127,6 +131,7 @@ export async function finalRenderGateAction(formData: FormData) {
     logoUrl,
     // Art-bewusste Logo-Variante: white fuer flash_sale (roter BG), colour fuer standard.
     resolveLogo: (v) => resolveLogoSrc(brand.tokens, brand.brand.slug, { variant: v }),
+    resolvePriceBlob: () => resolveStarBlobSrc(brand.brand.slug),
     // Fliesst in den deterministischen Konformitaets-Gate: solange das echte
     // Wingo-Lockup fehlt, sind die Assets nicht brand-konform und werden vom
     // ZIP-Export geblockt (KO-Kriterium).
@@ -167,6 +172,7 @@ export async function retryAssetGateAction(formData: FormData) {
     brandConfig: brand,
     logoUrl,
     resolveLogo: (v) => resolveLogoSrc(brand.tokens, brand.brand.slug, { variant: v }),
+    resolvePriceBlob: () => resolveStarBlobSrc(brand.brand.slug),
     logoIsPlaceholder: logoIsPlaceholder(brand.brand.slug),
     formatId,
     language,

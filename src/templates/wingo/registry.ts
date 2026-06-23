@@ -50,6 +50,9 @@ export interface TemplateProps {
   // Voller visueller Stil (V1.1). Vom Orchestrator via styleForArt(art) gesetzt.
   // Fehlt er, faellt resolveTemplateStyle auf den Standard-Grau-Look + emphasis zurueck.
   style?: CampaignStyle;
+  // Weisser Wingo-Stern-Blob als Preis-Container (flash_sale). Vom Orchestrator
+  // gesetzt; Template nutzt ihn nur wenn style.priceInBlob = true.
+  priceBlobSrc?: string;
   // Pflicht bei hero.source === 'ai'. resolveAiLabelConfig liefert null wenn die
   // Brand kein Label registriert hat — in dem Fall lassen Templates das Asset weg.
   aiLabel?: AiLabelConfig;

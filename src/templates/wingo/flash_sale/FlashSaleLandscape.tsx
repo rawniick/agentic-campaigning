@@ -26,6 +26,7 @@ export interface FlashSaleLandscapeProps {
   variant?: FlashSaleLandscapeVariant;
   emphasis?: "urgency" | "neutral";
   style?: CampaignStyle;
+  priceBlobSrc?: string;
   aiLabel?: AiLabelConfig;
 }
 
@@ -102,6 +103,34 @@ export function FlashSaleLandscape(props: FlashSaleLandscapeProps): ReactElement
     </div>
   );
 
+  // Flash Sale: Preis im weissen Wingo-Stern-Blob (dunkler Text). Sonst plain.
+  // Quadratischer Blob ersetzt nur den Preis-Teil; CTA bleibt daneben.
+  // Row ist alignItems:center → Blob + CTA sitzen vertikal zentriert nebeneinander.
+  const priceEl =
+    s.priceInBlob && props.priceBlobSrc ? (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 180,
+          height: 180,
+          backgroundImage: `url(${props.priceBlobSrc})`,
+          backgroundSize: "100% 100%",
+          color: "#292B2D",
+        }}
+      >
+        <span style={{ fontSize: 50, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
+        <span style={{ fontSize: 18, fontWeight: 400 }}>{props.priceSuffix}</span>
+      </div>
+    ) : (
+      <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
+        <span style={{ fontSize: 88, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
+        <span style={{ fontSize: 28, fontWeight: 400, marginLeft: 8 }}>{props.priceSuffix}</span>
+      </div>
+    );
+
   const priceCtaRow = (
     <div
       key="price_cta"
@@ -112,10 +141,7 @@ export function FlashSaleLandscape(props: FlashSaleLandscapeProps): ReactElement
         gap: 28,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
-        <span style={{ fontSize: 88, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
-        <span style={{ fontSize: 28, fontWeight: 400, marginLeft: 8 }}>{props.priceSuffix}</span>
-      </div>
+      {priceEl}
       <div
         style={{
           display: "flex",

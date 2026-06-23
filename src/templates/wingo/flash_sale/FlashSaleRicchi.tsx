@@ -27,6 +27,8 @@ export interface FlashSaleRicchiProps {
   variant?: FlashSaleRicchiVariant;
   emphasis?: "urgency" | "neutral";
   style?: CampaignStyle;
+  // Weisser Stern-Blob als Preis-Container (flash_sale). Vom Orchestrator gesetzt.
+  priceBlobSrc?: string;
   aiLabel?: AiLabelConfig;
 }
 
@@ -93,6 +95,8 @@ export function FlashSaleRicchi(props: FlashSaleRicchiProps): ReactElement {
     </div>
   );
 
+  // Ricchi (320x416, Content nur ~256px) ist zu eng fuer den Stern-Blob ->
+  // plain Preis, auch im flash_sale-Look.
   const priceBlock = (
     <div
       key="price"

@@ -28,6 +28,8 @@ export interface FlashSaleBillboardProps {
   variant?: FlashSaleBillboardVariant;
   emphasis?: "urgency" | "neutral";
   style?: CampaignStyle;
+  // Weisser Stern-Blob als Preis-Container (flash_sale). Vom Orchestrator gesetzt.
+  priceBlobSrc?: string;
   aiLabel?: AiLabelConfig;
 }
 
@@ -36,6 +38,12 @@ const HEIGHT = 250;
 const HERO_WIDTH = 380;
 const DISCLAIMER_H = 16;
 const MAIN_H = HEIGHT - DISCLAIMER_H;
+
+// Blob-Groessen: Billboard ist flach (250px), Preis+CTA stehen in EINER Row.
+// Blob-Hoehe = Row-Hoehe-vertraeglich, damit Blob + CTA zentriert nebeneinander passen.
+const BLOB = 110;
+const PRICE_FS = 31;
+const SUFFIX_FS = 11;
 
 export function FlashSaleBillboard(props: FlashSaleBillboardProps): ReactElement {
   const t = props.tokens;
@@ -118,14 +126,35 @@ export function FlashSaleBillboard(props: FlashSaleBillboardProps): ReactElement
         gap: 16,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
-        <span style={{ fontSize: 42, fontWeight: 700, lineHeight: 1 }}>
-          {props.pricePromo}
-        </span>
-        <span style={{ fontSize: 16, fontWeight: 400, marginLeft: 4 }}>
-          {props.priceSuffix}
-        </span>
-      </div>
+      {s.priceInBlob && props.priceBlobSrc ? (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            width: BLOB,
+            height: BLOB,
+            backgroundImage: `url(${props.priceBlobSrc})`,
+            backgroundSize: "100% 100%",
+            color: "#292B2D",
+          }}
+        >
+          <span style={{ fontSize: PRICE_FS, fontWeight: 700, lineHeight: 1 }}>
+            {props.pricePromo}
+          </span>
+          <span style={{ fontSize: SUFFIX_FS, fontWeight: 400 }}>{props.priceSuffix}</span>
+        </div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
+          <span style={{ fontSize: 42, fontWeight: 700, lineHeight: 1 }}>
+            {props.pricePromo}
+          </span>
+          <span style={{ fontSize: 16, fontWeight: 400, marginLeft: 4 }}>
+            {props.priceSuffix}
+          </span>
+        </div>
+      )}
       <div
         style={{
           display: "flex",

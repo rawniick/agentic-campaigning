@@ -27,12 +27,19 @@ export interface FlashSaleMetaImageProps {
   variant?: FlashSaleMetaImageVariant;
   emphasis?: "urgency" | "neutral";
   style?: CampaignStyle;
+  priceBlobSrc?: string;
   aiLabel?: AiLabelConfig;
 }
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
 const HERO_HEIGHT = 1000;
+
+// Flash Sale: Preis im weissen Wingo-Stern-Blob (dunkler Text). Groesse format-gerecht:
+// Content-Slot unter Hero = 920px, BLOB passt bequem in den Preis-Slot ohne Overlap.
+const BLOB = 220;
+const PRICE_FS = 62;
+const SUFFIX_FS = 22;
 
 export function FlashSaleMetaImage(props: FlashSaleMetaImageProps): ReactElement {
   const t = props.tokens;
@@ -101,24 +108,45 @@ export function FlashSaleMetaImage(props: FlashSaleMetaImageProps): ReactElement
     </div>
   );
 
-  const priceBlock = (
-    <div
-      key="price"
-      style={{
-        display: "flex",
-        alignItems: "baseline",
-        padding: "16px 64px 0 64px",
-        color: s.priceColor,
-      }}
-    >
-      <span style={{ fontSize: 168, fontWeight: 700, lineHeight: 1 }}>
-        {props.pricePromo}
-      </span>
-      <span style={{ fontSize: 48, fontWeight: 400, marginLeft: 12 }}>
-        {props.priceSuffix}
-      </span>
-    </div>
-  );
+  // Flash Sale: Preis im weissen Wingo-Stern-Blob (dunkler Text). Sonst plain.
+  const priceBlock =
+    s.priceInBlob && props.priceBlobSrc ? (
+      <div key="price" style={{ display: "flex", padding: "16px 64px 0 64px" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            width: BLOB,
+            height: BLOB,
+            backgroundImage: `url(${props.priceBlobSrc})`,
+            backgroundSize: "100% 100%",
+            color: "#292B2D",
+          }}
+        >
+          <span style={{ fontSize: PRICE_FS, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
+          <span style={{ fontSize: SUFFIX_FS, fontWeight: 400 }}>{props.priceSuffix}</span>
+        </div>
+      </div>
+    ) : (
+      <div
+        key="price"
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          padding: "16px 64px 0 64px",
+          color: s.priceColor,
+        }}
+      >
+        <span style={{ fontSize: 168, fontWeight: 700, lineHeight: 1 }}>
+          {props.pricePromo}
+        </span>
+        <span style={{ fontSize: 48, fontWeight: 400, marginLeft: 12 }}>
+          {props.priceSuffix}
+        </span>
+      </div>
+    );
 
   const ctaBlock = (
     <div key="cta" style={{ display: "flex", padding: "24px 64px 0 64px" }}>

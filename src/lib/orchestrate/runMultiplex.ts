@@ -36,6 +36,9 @@ export interface RunMultiplexInput {
   // Style-Variante (white fuer flash_sale, colour fuer standard). Ohne sie wird
   // der fixe logoUrl genutzt (Tests).
   resolveLogo?: (variant: "colour" | "white") => string;
+  // Optional: liefert den weissen Stern-Blob (Data-URL) fuer den flash_sale-Preis-
+  // Container. Nur genutzt wenn der Stil priceInBlob = true.
+  resolvePriceBlob?: () => string | null;
   // injizierbar fuer Tests
   renderToPng?: (
     node: ReactElement,
@@ -265,6 +268,7 @@ async function renderOneFormat(
   data: GateData,
   logoUrl: string,
   style: CampaignStyle,
+  priceBlobSrc: string | undefined,
   renderImpl: NonNullable<RunMultiplexInput["renderToPng"]>,
   visionClient: VisionQAClient | undefined,
   maxRetries: number,
@@ -296,6 +300,7 @@ async function renderOneFormat(
     variant: data.variant,
     emphasis,
     style,
+    priceBlobSrc,
     aiLabel,
   });
 
@@ -412,6 +417,9 @@ export async function runMultiplex(
     const logoUrl = input.resolveLogo
       ? input.resolveLogo(style.logoVariant)
       : input.logoUrl;
+    const priceBlobSrc = style.priceInBlob
+      ? input.resolvePriceBlob?.() ?? undefined
+      : undefined;
     const v1Formats = await getV1Formats(db);
 
     const renderableTargets: Array<{ format: FormatSpec; component: TemplateComponent }> =
@@ -461,6 +469,7 @@ export async function runMultiplex(
           data,
           logoUrl,
           style,
+          priceBlobSrc,
           renderImpl,
           input.visionClient,
           maxRetries,
@@ -526,6 +535,7 @@ export interface RetryAssetInput {
   brandConfig: BrandConfig;
   logoUrl: string;
   resolveLogo?: (variant: "colour" | "white") => string;
+  resolvePriceBlob?: () => string | null;
   formatId: string;
   language: string;
   renderToPng?: RunMultiplexInput["renderToPng"];
@@ -569,6 +579,9 @@ export async function retryAsset(
   const logoUrl = input.resolveLogo
     ? input.resolveLogo(style.logoVariant)
     : input.logoUrl;
+  const priceBlobSrc = style.priceInBlob
+    ? input.resolvePriceBlob?.() ?? undefined
+    : undefined;
 
   return renderOneFormat(
     db,
@@ -580,6 +593,7 @@ export async function retryAsset(
     data,
     logoUrl,
     style,
+    priceBlobSrc,
     renderImpl,
     input.visionClient,
     input.maxRenderRetries ?? 2,

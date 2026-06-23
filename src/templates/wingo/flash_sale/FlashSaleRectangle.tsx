@@ -31,11 +31,20 @@ export interface FlashSaleRectangleProps {
   variant?: FlashSaleRectangleVariant;
   emphasis?: "urgency" | "neutral";
   style?: CampaignStyle;
+  // Weisser Stern-Blob als Preis-Container (flash_sale). Vom Orchestrator gesetzt.
+  priceBlobSrc?: string;
   aiLabel?: AiLabelConfig;
 }
 
 const WIDTH = 300;
 const HEIGHT = 250;
+
+// Blob-Groessen fuer das kompakte Rectangle. Der quadratische Blob ersetzt nur
+// den Preis-Teil der priceCtaRow; Hoehe = Row-Hoehe, damit Blob + CTA vertikal
+// zentriert nebeneinander sitzen (alignItems:center der Row).
+const BLOB = 64;
+const PRICE_FS = 18;
+const SUFFIX_FS = 7;
 
 export function FlashSaleRectangle(props: FlashSaleRectangleProps): ReactElement {
   const t = props.tokens;
@@ -110,14 +119,38 @@ export function FlashSaleRectangle(props: FlashSaleRectangleProps): ReactElement
         padding: "4px 12px 0 12px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
-        <span style={{ fontSize: 26, fontWeight: 700, lineHeight: 1 }}>
-          {props.pricePromo}
-        </span>
-        <span style={{ fontSize: 11, fontWeight: 400, marginLeft: 3 }}>
-          {props.priceSuffix}
-        </span>
-      </div>
+      {/* Flash Sale: Preis im weissen Wingo-Stern-Blob (dunkler Text). Sonst plain. */}
+      {s.priceInBlob && props.priceBlobSrc ? (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            width: BLOB,
+            height: BLOB,
+            backgroundImage: `url(${props.priceBlobSrc})`,
+            backgroundSize: "100% 100%",
+            color: "#292B2D",
+          }}
+        >
+          <span style={{ fontSize: PRICE_FS, fontWeight: 700, lineHeight: 1 }}>
+            {props.pricePromo}
+          </span>
+          <span style={{ fontSize: SUFFIX_FS, fontWeight: 400 }}>
+            {props.priceSuffix}
+          </span>
+        </div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
+          <span style={{ fontSize: 26, fontWeight: 700, lineHeight: 1 }}>
+            {props.pricePromo}
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 400, marginLeft: 3 }}>
+            {props.priceSuffix}
+          </span>
+        </div>
+      )}
       <div
         style={{
           display: "flex",

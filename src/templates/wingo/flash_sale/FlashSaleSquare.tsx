@@ -24,6 +24,8 @@ export interface FlashSaleSquareProps {
   variant?: FlashSaleSquareVariant;
   emphasis?: "urgency" | "neutral";
   style?: CampaignStyle;
+  // Weisser Stern-Blob als Preis-Container (flash_sale). Vom Orchestrator gesetzt.
+  priceBlobSrc?: string;
   aiLabel?: AiLabelConfig;
 }
 
@@ -93,6 +95,9 @@ export function FlashSaleSquare(props: FlashSaleSquareProps): ReactElement {
     </div>
   );
 
+  // Square (1200x1200, Hero 640 -> nur 560px Content) ist zu eng fuer den
+  // Stern-Blob -> plain Preis, auch im flash_sale-Look. Der Blob greift nur in
+  // Formaten mit genug Preis-Slot (Halfpage, MetaImage, priceCtaRow-Formate).
   const priceBlock = (
     <div
       key="price"

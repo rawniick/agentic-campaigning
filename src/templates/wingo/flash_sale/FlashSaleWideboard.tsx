@@ -24,6 +24,8 @@ export interface FlashSaleWideboardProps {
   variant?: FlashSaleWideboardVariant;
   emphasis?: "urgency" | "neutral";
   style?: CampaignStyle;
+  // Weisser Stern-Blob als Preis-Container (flash_sale). Vom Orchestrator gesetzt.
+  priceBlobSrc?: string;
   aiLabel?: AiLabelConfig;
 }
 
@@ -32,6 +34,12 @@ const HEIGHT = 500;
 const HERO_WIDTH = 480;
 const DISCLAIMER_H = 28;
 const MAIN_H = HEIGHT - DISCLAIMER_H;
+
+// Blob-Groessen: priceCtaRow ist hoehen-limitiert (alignItems:center). Blob ~ Row-Hoehe,
+// damit er bequem neben dem CTA-Button sitzt ohne den Content-Slot zu sprengen.
+const BLOB = 130;
+const PRICE_FS = 36;
+const SUFFIX_FS = 13;
 
 export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement {
   const t = props.tokens;
@@ -100,6 +108,33 @@ export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement
     </div>
   );
 
+  // Flash Sale: Preis im weissen Wingo-Stern-Blob (dunkler Text). Sonst plain.
+  // Der Blob ERSETZT nur den Preis-Teil der Row; der CTA-Button bleibt daneben.
+  const priceEl =
+    s.priceInBlob && props.priceBlobSrc ? (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          width: BLOB,
+          height: BLOB,
+          backgroundImage: `url(${props.priceBlobSrc})`,
+          backgroundSize: "100% 100%",
+          color: "#292B2D",
+        }}
+      >
+        <span style={{ fontSize: PRICE_FS, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
+        <span style={{ fontSize: SUFFIX_FS, fontWeight: 400 }}>{props.priceSuffix}</span>
+      </div>
+    ) : (
+      <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
+        <span style={{ fontSize: 72, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
+        <span style={{ fontSize: 24, fontWeight: 400, marginLeft: 6 }}>{props.priceSuffix}</span>
+      </div>
+    );
+
   const priceCtaRow = (
     <div
       key="price_cta"
@@ -110,10 +145,7 @@ export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement
         gap: 24,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
-        <span style={{ fontSize: 72, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
-        <span style={{ fontSize: 24, fontWeight: 400, marginLeft: 6 }}>{props.priceSuffix}</span>
-      </div>
+      {priceEl}
       <div
         style={{
           display: "flex",

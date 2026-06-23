@@ -12,7 +12,11 @@ import path from "path";
 import sharp from "sharp";
 import { getDb } from "../../db/server";
 import { loadBrand } from "../../brand/loadBrand";
-import { resolveLogoSrc, logoIsPlaceholder } from "../../brand/resolveLogoSrc";
+import {
+  resolveLogoSrc,
+  logoIsPlaceholder,
+  resolveStarBlobSrc,
+} from "../../brand/resolveLogoSrc";
 import { createSupabaseStorage } from "../../storage/supabaseStorage";
 import { createClaudeTranslator } from "../../copy/claudeTranslator";
 import { createCampaign } from "../../db/queries/campaigns";
@@ -156,6 +160,7 @@ describe.skipIf(!process.env.SHIP_PROOF)("LIVE ship-proof (44 Assets gegen echte
       logoUrl,
       // Art-bewusste Logo-Variante (white fuer flash_sale) — wie die Gate-Action.
       resolveLogo: (v) => resolveLogoSrc(brandConfig.tokens, "wingo", { variant: v }),
+      resolvePriceBlob: () => resolveStarBlobSrc("wingo"),
       logoIsPlaceholder: placeholder,
       translate: {
         passthroughTerms: brandConfig.glossar.passthrough_terms,
@@ -191,7 +196,16 @@ describe.skipIf(!process.env.SHIP_PROOF)("LIVE ship-proof (44 Assets gegen echte
     console.log(`[ship-proof] ZIP: scripts/ship-proof/wingo-44.zip (${zip.length} bytes)`);
 
     // 3 Sample-Assets (DE) zum Anschauen herunterladen.
-    const samples = ["dv360_halfpage", "meta_image", "google_pmax_static"];
+    const samples = [
+      "dv360_halfpage",
+      "dv360_rectangle",
+      "dv360_billboard",
+      "meta_image",
+      "dv360_ricchi",
+      "dv360_wideboard_xl",
+      "google_pmax_static",
+      "google_sea_ad_ext",
+    ];
     for (const code of samples) {
       const a = result.assets.find((x) => x.formatCode === code && x.language === "de");
       if (!a) continue;
