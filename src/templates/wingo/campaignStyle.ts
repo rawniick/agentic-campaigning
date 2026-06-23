@@ -23,6 +23,7 @@ export interface CampaignStyle {
   ctaText: string; // CTA-Label
   disclaimerColor: string; // Legal-Footer
   logoVariant: "colour" | "white"; // welches Lockup (resolveLogoSrc)
+  priceInBlob: boolean; // Preis im weissen Wingo-Stern-Blob (flash_sale) statt plain
 }
 
 // Leitet den Stil aus dem Kampagnentyp + den Brand-Tokens ab.
@@ -43,6 +44,7 @@ export function styleForArt(art: CampaignArt, tokens: BrandTokens): CampaignStyl
       ctaText: primary,
       disclaimerColor: "#FFFFFF",
       logoVariant: "white",
+      priceInBlob: true,
     };
   }
   return {
@@ -53,6 +55,7 @@ export function styleForArt(art: CampaignArt, tokens: BrandTokens): CampaignStyl
     ctaText: "#FFFFFF",
     disclaimerColor: "#525252",
     logoVariant: "colour",
+    priceInBlob: false,
   };
 }
 
@@ -75,5 +78,6 @@ export function resolveTemplateStyle(args: {
     ctaText: "#FFFFFF",
     disclaimerColor: "#525252",
     logoVariant: "colour",
+    priceInBlob: false,
   };
 }

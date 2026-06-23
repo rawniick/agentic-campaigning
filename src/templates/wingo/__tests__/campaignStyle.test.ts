@@ -21,6 +21,7 @@ describe("styleForArt", () => {
     expect(s.ctaBackground).toBe("#FFFFFF");
     expect(s.ctaText).toBe("#FF5759"); // rotes Label auf weissem Button
     expect(s.logoVariant).toBe("white");
+    expect(s.priceInBlob).toBe(true); // Preis im weissen Stern-Blob
   });
 
   it("standard = grauer BG + dunkles Logo/Text + Brand-Rot als Akzent", () => {
@@ -31,6 +32,7 @@ describe("styleForArt", () => {
     expect(s.ctaBackground).toBe("#FF5759");
     expect(s.ctaText).toBe("#FFFFFF");
     expect(s.logoVariant).toBe("colour");
+    expect(s.priceInBlob).toBe(false);
   });
 
   it("faellt auf Defaults zurueck wenn secondary/background fehlen", () => {

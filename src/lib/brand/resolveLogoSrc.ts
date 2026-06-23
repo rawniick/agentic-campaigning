@@ -85,3 +85,15 @@ function interimLogoDataUrl(hex: string): string {
     .asPng();
   return `data:image/png;base64,${Buffer.from(png).toString("base64")}`;
 }
+
+// Liefert den weissen Wingo-Stern als PNG-Data-URL fuer den Preis-Blob (flash_sale).
+// null, wenn das Asset fehlt — das Template faellt dann auf den plain Preis zurueck.
+export function resolveStarBlobSrc(
+  slug: string,
+  opts: ResolveLogoOptions = {}
+): string | null {
+  const baseDir = opts.baseDir ?? path.join(process.cwd(), "brand-assets");
+  const p = path.join(baseDir, slug, "logos/wingo-stern-white@3x.png");
+  if (!fs.existsSync(p)) return null;
+  return `data:image/png;base64,${fs.readFileSync(p).toString("base64")}`;
+}

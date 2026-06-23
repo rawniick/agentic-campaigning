@@ -27,6 +27,8 @@ export interface FlashSaleHalfpageProps {
   variant?: FlashSaleHalfpageVariant;
   emphasis?: "urgency" | "neutral";
   style?: CampaignStyle;
+  // Weisser Stern-Blob als Preis-Container (flash_sale). Vom Orchestrator gesetzt.
+  priceBlobSrc?: string;
   aiLabel?: AiLabelConfig;
 }
 
@@ -93,20 +95,41 @@ export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
     </div>
   );
 
-  const priceBlock = (
-    <div
-      key="price"
-      style={{
-        display: "flex",
-        alignItems: "baseline",
-        padding: "8px 16px 0 16px",
-        color: s.priceColor,
-      }}
-    >
-      <span style={{ fontSize: 44, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
-      <span style={{ fontSize: 16, fontWeight: 400, marginLeft: 4 }}>{props.priceSuffix}</span>
-    </div>
-  );
+  // Flash Sale: Preis im weissen Wingo-Stern-Blob (dunkler Text). Sonst plain.
+  const priceBlock =
+    s.priceInBlob && props.priceBlobSrc ? (
+      <div key="price" style={{ display: "flex", padding: "8px 16px 0 16px" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 168,
+            height: 168,
+            backgroundImage: `url(${props.priceBlobSrc})`,
+            backgroundSize: "100% 100%",
+            color: "#292B2D",
+          }}
+        >
+          <span style={{ fontSize: 46, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
+          <span style={{ fontSize: 15, fontWeight: 400 }}>{props.priceSuffix}</span>
+        </div>
+      </div>
+    ) : (
+      <div
+        key="price"
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          padding: "8px 16px 0 16px",
+          color: s.priceColor,
+        }}
+      >
+        <span style={{ fontSize: 44, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
+        <span style={{ fontSize: 16, fontWeight: 400, marginLeft: 4 }}>{props.priceSuffix}</span>
+      </div>
+    );
 
   const ctaBlock = (
     <div key="cta" style={{ display: "flex", padding: "12px 16px 0 16px" }}>
