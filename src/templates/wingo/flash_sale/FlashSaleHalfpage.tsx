@@ -42,7 +42,12 @@ export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
   // Slot-Bloecke einmal definieren, dann je nach Variant unterschiedlich anordnen.
   const logoBlock = (
     <div key="logo" style={{ display: "flex", padding: "16px 16px 8px 16px" }}>
-      <img src={props.logoSrc} alt="Wingo" style={{ width: 80, height: 24 }} />
+      {/* objectFit:contain — Logo proportional in den Slot, nie verzerren (KO) */}
+      <img
+        src={props.logoSrc}
+        alt="Wingo"
+        style={{ width: 80, height: 24, objectFit: "contain" }}
+      />
     </div>
   );
 

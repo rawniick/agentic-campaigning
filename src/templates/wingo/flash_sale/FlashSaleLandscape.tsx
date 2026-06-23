@@ -61,7 +61,12 @@ export function FlashSaleLandscape(props: FlashSaleLandscapeProps): ReactElement
 
   const logoBlock = (
     <div key="logo" style={{ display: "flex", paddingBottom: 20 }}>
-      <img src={props.logoSrc} alt="Wingo" style={{ width: 160, height: 48 }} />
+      {/* objectFit:contain — Logo proportional in den Slot, nie verzerren (KO) */}
+      <img
+        src={props.logoSrc}
+        alt="Wingo"
+        style={{ width: 160, height: 48, objectFit: "contain" }}
+      />
     </div>
   );
 

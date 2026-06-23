@@ -45,7 +45,12 @@ export function FlashSaleRectangle(props: FlashSaleRectangleProps): ReactElement
 
   const logoBlock = (
     <div key="logo" style={{ display: "flex", padding: "8px 12px 0 12px" }}>
-      <img src={props.logoSrc} alt="Wingo" style={{ width: 60, height: 18 }} />
+      {/* objectFit:contain — Logo proportional in den Slot, nie verzerren (KO) */}
+      <img
+        src={props.logoSrc}
+        alt="Wingo"
+        style={{ width: 60, height: 18, objectFit: "contain" }}
+      />
     </div>
   );
 

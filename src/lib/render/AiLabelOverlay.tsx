@@ -20,6 +20,9 @@ function styleForPosition(position: AiLabelPosition): CSSProperties {
     position: "absolute",
     width: size.w,
     height: size.h,
+    // objectFit:contain — Pflicht-Brand-Asset proportional skalieren, nie
+    // verzerren (gleiche KO-Klasse wie das Logo), falls Quell- != Slot-Ratio.
+    objectFit: "contain",
   };
   if (anchor.startsWith("top")) style.top = offset.y;
   if (anchor.startsWith("bottom")) style.bottom = offset.y;

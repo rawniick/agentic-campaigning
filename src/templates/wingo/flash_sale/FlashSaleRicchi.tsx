@@ -42,7 +42,12 @@ export function FlashSaleRicchi(props: FlashSaleRicchiProps): ReactElement {
 
   const logoBlock = (
     <div key="logo" style={{ display: "flex", padding: "12px 14px 6px 14px" }}>
-      <img src={props.logoSrc} alt="Wingo" style={{ width: 72, height: 22 }} />
+      {/* objectFit:contain — Logo proportional in den Slot, nie verzerren (KO) */}
+      <img
+        src={props.logoSrc}
+        alt="Wingo"
+        style={{ width: 72, height: 22, objectFit: "contain" }}
+      />
     </div>
   );
 

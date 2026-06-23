@@ -18,6 +18,8 @@ describe("AiLabelOverlay", () => {
     );
     expect(html).toContain('src="https://example.com/ai-label.svg"');
     expect(html).toMatch(/alt="[^"]+"/);
+    // KO: Pflicht-Brand-Asset darf nicht verzerrt werden.
+    expect(html).toMatch(/object-fit:\s*contain/);
   });
 
   it.each([

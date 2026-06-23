@@ -59,7 +59,12 @@ export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement
 
   const logoBlock = (
     <div key="logo" style={{ display: "flex", paddingBottom: 16 }}>
-      <img src={props.logoSrc} alt="Wingo" style={{ width: 132, height: 40 }} />
+      {/* objectFit:contain — Logo proportional in den Slot, nie verzerren (KO) */}
+      <img
+        src={props.logoSrc}
+        alt="Wingo"
+        style={{ width: 132, height: 40, objectFit: "contain" }}
+      />
     </div>
   );
 

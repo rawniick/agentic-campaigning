@@ -60,7 +60,12 @@ export function FlashSaleMetaImage(props: FlashSaleMetaImageProps): ReactElement
 
   const logoBlock = (
     <div key="logo" style={{ display: "flex", padding: "48px 64px 0 64px" }}>
-      <img src={props.logoSrc} alt="Wingo" style={{ width: 240, height: 72 }} />
+      {/* objectFit:contain — Logo proportional in den Slot, nie verzerren (KO) */}
+      <img
+        src={props.logoSrc}
+        alt="Wingo"
+        style={{ width: 240, height: 72, objectFit: "contain" }}
+      />
     </div>
   );
 

@@ -52,7 +52,12 @@ export function FlashSaleSquare(props: FlashSaleSquareProps): ReactElement {
 
   const logoBlock = (
     <div key="logo" style={{ display: "flex", padding: "40px 48px 0 48px" }}>
-      <img src={props.logoSrc} alt="Wingo" style={{ width: 200, height: 60 }} />
+      {/* objectFit:contain — Logo proportional in den Slot, nie verzerren (KO) */}
+      <img
+        src={props.logoSrc}
+        alt="Wingo"
+        style={{ width: 200, height: 60, objectFit: "contain" }}
+      />
     </div>
   );
 
