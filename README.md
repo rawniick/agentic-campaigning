@@ -1,80 +1,105 @@
-# ACE – Agentic Campaigning Engine
+# ACE – Wingo Format-Multiplexer
 
-AI-gesteuerte, brand-agnostische Marketing-Engine basierend auf **Next.js** + **Claude API** + **n8n**.
+ACE adaptiert ein Marketing-Briefing **deterministisch** in **11 Formate × 4
+Sprachen = 44 brand-konforme Assets** als ZIP. Ein Marketer gibt Produkt, Preis,
+Kampagnenart und Botschaft ein; die Engine erzeugt Copy (Claude mit
+Brand-Voice-Constraints), wählt/generiert ein Hero-Bild, komponiert je Format ein
+deterministisches Code-Layout (Satori → PNG) und prüft jedes Asset gegen einen
+Brand-Konformitäts-Gate.
+
+**Brand:** Wingo (Swisscom). Architektur multi-brand-ready (`brand_id`-Pattern),
+V1 launcht single-brand. **KO-Kriterium:** 100 % Brand-Konformität — verzerrte
+Logos, falsche Farben oder verletzte Schutzbereiche machen ein Asset wertlos.
+
+## Stack
+
+- **Frontend:** Next.js 16 (App Router) + React 19 + Tailwind 4 + shadcn/ui
+- **Backend:** Next.js API Routes + Server Actions (**kein n8n**)
+- **AI:** Anthropic Claude (Copy / Translate / Edit / Vision-QA)
+- **Render:** Satori (JSX → SVG) + `@resvg/resvg-js` (SVG → PNG), `sharp` zur Bild-Normalisierung
+- **DB / Storage / Auth:** Supabase — Postgres (via `pg.Pool`), Buckets `campaign-assets` + `hero-library`
+- **Brand-Source:** git-versioniert in `brand-assets/wingo/`
+- **Hosting:** Vercel
 
 ## Quickstart
 
 ```bash
-# 1. Repo klonen
-git clone <repo-url>
-cd agentic-campaigning
+npm install
 
-# 2. Environment konfigurieren
-cp .env.example .env
-# → API Keys eintragen (siehe unten)
+# Environment anlegen + Keys eintragen (alle Variablen sind dort dokumentiert)
+cp .env.example .env.local
 
-# 3. n8n + Postgres starten
-docker compose up -d
-
-# 4. n8n öffnen
-open http://localhost:5678
-
-# 5. Workflows importieren
-# Settings → Import Workflow → Dateien aus n8n-workflows/ auswählen
+npm run dev        # http://localhost:3000
 ```
 
-## API Keys (.env)
+Pflicht-Env: `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`
+(Pooler `:6543` oder Session-Mode `:5432`). Details: siehe `.env.example`.
+
+### Datenbank-Schema
+
+Migrationen liegen in `supabase/migrations/`. Schema + Seeds (Brand, 11
+Format-Specs, Brand-Voices, Disclaimer) deployst du via Supabase-SQL-Editor oder:
+
+```bash
+node scripts/deploy-schema.mjs   # liest DATABASE_URL + SUPABASE_SERVICE_ROLE_KEY aus .env.local
+```
+
+## 5-Gate-Flow
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
-N8N_BASIC_AUTH_USER=admin
-N8N_BASIC_AUTH_PASSWORD=<sicheres-passwort>
-POSTGRES_PASSWORD=<sicheres-passwort>
+Brief → Gate 1 Copy-Approval  (Headlines/Subline, TOV-aware)
+      → Gate 2 Hero-Bild       (Library / AI-Gen / Upload)
+      → Gate 3 Layout          (Master-Komposition + Variant-Auswahl)
+      → Gate 4 Final-Hero-Review
+      → AUTO: Multiplex auf 11 Formate × 4 Sprachen
+      → Gallery + Per-Asset Chat-Edit + ZIP-Download
 ```
+
+Layout = deterministisch (Code-Templates). Bild = kreativ (Library-First, AI als
+Fallback). Copy = LLM mit Brand-Voice-Constraints. Compliance = pass-through
+(Preise + Disclaimer werden **nie** vom LLM verändert).
 
 ## Projektstruktur
 
 ```
-docs/              Architektur, Angebot, Runbooks
-data-model/        Promo-Input JSON Schema + Beispiele
-prompts/           Versionierte System-Prompts + Brand-Assets
-n8n-workflows/     Alle n8n Workflows (Master + Sub-Workflows)
-templates/         Briefing-Vorlagen + Asset-Templates
-scripts/           Setup & Utility Scripts
-dashboards/        React Dashboards (Plan, Architektur)
-pilot/             Pilot-Kampagnen Tracking
+src/
+  app/            App Router — Dashboard, /campaigns, /admin, Auth
+  components/     UI (shadcn primitives + Feature-Komponenten)
+  lib/
+    ai/           Claude-Wrapper
+    brand/        Token-Loader (Zod-validiert, fail-fast bei Brand-Drift)
+    db/           pg-Queries + Migrations-Helfer
+    render/       Satori→PNG, Hero-/AI-Label-Auflösung
+    orchestrate/  44-Asset-Multiplexer
+    qa/           Deterministischer Brand-Konformitäts-Gate
+    export/       ZIP-Bundling
+  templates/      Format-Layouts (deterministisch, kein LLM-Layout)
+brand-assets/wingo/   Brand source of truth (tokens.json, logos, fonts, glossar)
+supabase/migrations/  DB-Schema
+docs/PRD-Wingo-V1.md  Product Requirements
+plans/                Phasen-Pläne
 ```
 
-## Workflow-Architektur
+## Business-Regeln (STRICT)
 
+- **Preise** + **Disclaimer** werden NIE vom LLM modifiziert (verbatim aus Brief
+  bzw. `disclaimers`-Table pro Zielsprache).
+- **Glossar** (`brand-assets/wingo/glossar.json`) hat in jeder Sprache Vorrang.
+- **Logo + AI-Label** dürfen nicht verzerren (`objectFit:contain`, per Test-Invariante erzwungen).
+- **5G-Hinweis** „5G im Swisscom Netz" ist Pflicht bei 5G-Produkten (conditions-basiertes Matching).
+
+## Tests
+
+```bash
+npm test                  # Vitest: Unit + Integration (PGlite in-memory Postgres)
+npm run lint              # ESLint
+npx tsc --noEmit          # Typecheck
+
+# Voller End-to-End-Render (Brief → 44 echte PNG-Assets), gegated:
+E2E_FULL=1 npx vitest run src/lib/orchestrate/__tests__/fullPipeline.e2e.test.ts
 ```
-Master Orchestrator
-├── 01 Input Validator
-├── 02 Konzept Generator
-├── 03 Kanal Adapter
-├── 04 Briefing Assembler
-├── 05 Translator (DE→FR/IT)
-├── 06 Compliance Checker
-├── 07 Review Router
-└── 08 Quality Monitor
-```
-
-## Sprint-Plan
-
-| Sprint | Wochen | Fokus |
-|--------|--------|-------|
-| S0 | W0 | Foundation: Datenmodell, Setup, Prompt Skeleton |
-| S1 | W1-2 | Input Validator Workflow |
-| S2 | W3-4 | Konzept Generator |
-| S3 | W5-6 | Kanal Adapter + Briefing Assembler |
-| S4 | W7-8 | Translator + Compliance Checker |
-| S5 | W9-10 | Review Router + Quality Monitor |
-| S6 | W11-12 | Alpha Release |
-| S7 | W13-14 | Optimierung → Beta |
-| S8-12 | W15-24 | Pilotbetrieb |
 
 ## Docs
 
-- [Solution Architecture Review](docs/architecture/solution-architecture-review.md)
-- [Promo Input Schema](data-model/promo-input-schema.json)
-- [Setup Guide](docs/runbooks/setup.md)
+- [PRD](docs/PRD-Wingo-V1.md) · [Phasen-Plan](plans/wingo-v1.md) · [CLAUDE.md](CLAUDE.md) (Architektur + Konventionen)
