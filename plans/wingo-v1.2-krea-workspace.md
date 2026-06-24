@@ -103,3 +103,37 @@
 
 ## Reihenfolge-Logik
 Phase 0/1 = sofortige Wertschöpfung + Crashfix-Loop schließen. Phase 2 = KO-Kriterium (konforme Assets). Phase 3 = Linchpin (entkoppelt Konformität-Enforcement UND Layer-Editor). Phase 4 = UI-Rahmen für Chat + Editor. 5/6/7 = die drei grossen Features auf dem Fundament. 8 = Ausbau. Reihenfolge kann nach Nick-Priorität flexen.
+
+---
+
+## Konformitäts-Anker: kanonische Flash-Sale-Anatomie (2026-06-24)
+
+**Anker (D-Konform):** Konformität wird an den echten Wingo-Sample-Sujets gemessen
+(`brand-assets/wingo/samples/Beispiel Kampagne Flash Sale/Flash_1.png`, `Flash_2.png`).
+**D11 — Hybrid:** kanonische Mechanik + kurze generierte Headline als Zusatz-Claim.
+
+**Kanonische Flash-Sale-Anatomie (aus Flash_1/Flash_2 extrahiert):**
+- Roter Vollflächen-BG (#FF5759)
+- Wingo-Logo oben-links (weiss)
+- **„flash sale"-Wordmark** gross, weiss, lowercase — fixe Brand-Chrome
+- **Kurze generierte Headline** als Zusatz-Claim (Hybrid D11)
+- **Freigestellte Cut-out-Person** (transparent, blutet an den Rand) — ⚠️ ASSET-DEP
+- **„Gratis Aktivierung"-Burst-Badge** (schwarz)
+- **Weisser Stern-Blob mit DOPPELPREIS:** Produktname + alter Preis (durchgestrichen)
+  + neuer Preis („nur X.XX/Mt.") — braucht `price_standard` (Scraper ✓ Phase 1c)
+- CTA-Button („Hol's dir")
+- Channel-Footer („mobile tv internet")
+- Legal-Line klein unten (Compliance-Pflicht, auch wenn Samples sie kaum zeigen)
+
+**Befund:** Aktuelle Templates haben fixe Element-Höhen (Hero 200px, Blob 168px) →
+bei langem Text Cramming/Clipping (Overlap-Bug). UND die Anatomie weicht vom echten
+Sujet ab (kein Wordmark, kein Doppelpreis, kein Badge/Footer, Foto-Hero statt Cut-out).
+
+**Neue Template-Props nötig:** `productName`, `priceStandard`.
+**Asset-Deps für volle Fidelity:** freigestellte transparente Hero-PNGs (Gate-2 AI-Gen
+oder Nick), „Gratis Aktivierung"-Badge-Asset, „flash sale"-Wordmark-Treatment.
+
+**Methode:** Tracer-first (Halfpage) → Sign-off → auf die 7 anderen Format-Klassen
+propagieren → messbare Checks (kein Overlap, Safezone-Ränder, Legal-Line vorhanden) in
+den Konformitäts-Gate locken. Regression-Loop via `previewSamples.manual.test.ts`
+(`PREVIEW=1`, Output `scripts/preview/`).

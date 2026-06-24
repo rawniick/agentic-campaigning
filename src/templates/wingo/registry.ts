@@ -56,6 +56,12 @@ export interface TemplateProps {
   // Pflicht bei hero.source === 'ai'. resolveAiLabelConfig liefert null wenn die
   // Brand kein Label registriert hat — in dem Fall lassen Templates das Asset weg.
   aiLabel?: AiLabelConfig;
+  // V1.2 kanonische Flash-Sale-Anatomie (optional → Bestands-Caller bleiben gueltig):
+  // Produktname + display-fertiger Standard-/Streichpreis fuer den Doppelpreis-Blob,
+  // Channel-Footer-Text. Templates ohne Doppelpreis ignorieren sie.
+  productName?: string;
+  priceStandard?: string;
+  channels?: string;
 }
 
 export type TemplateComponent = (props: TemplateProps) => ReactElement;
