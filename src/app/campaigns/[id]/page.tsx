@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db/server";
 import { getCampaignById } from "@/lib/db/queries/campaigns";
 import { getAssetsForCampaign } from "@/lib/db/queries/assets";
 import { listHeroLibrary } from "@/lib/db/queries/hero-library";
+import { getGateChat } from "@/lib/db/queries/gate-chat";
 import { logoIsPlaceholder } from "@/lib/brand/resolveLogoSrc";
 import { GateView } from "./GateView";
 
@@ -20,8 +21,15 @@ export default async function CampaignDetailPage({ params }: PageProps) {
   const campaign = await getCampaignById(db, id);
   if (!campaign) notFound();
 
-  const [assets, copyRes, heroRes, layoutRes, libraryEntries, brandRes] =
-    await Promise.all([
+  const [
+    assets,
+    copyRes,
+    heroRes,
+    layoutRes,
+    libraryEntries,
+    brandRes,
+    gateChat,
+  ] = await Promise.all([
     getAssetsForCampaign(db, id),
     db.query<{
       headlines: string[];
@@ -46,6 +54,8 @@ export default async function CampaignDetailPage({ params }: PageProps) {
     db.query<{ slug: string }>(`SELECT slug FROM brands WHERE id = $1`, [
       campaign.brand_id,
     ]),
+    // Gate-1 Chat-Verlauf (de) fuer das Refine-Panel.
+    getGateChat(db, id, "copy", "de"),
   ]);
 
   // Warnt in der Gallery, falls noch kein echtes Wingo-Lockup vorliegt und der
@@ -104,6 +114,11 @@ export default async function CampaignDetailPage({ params }: PageProps) {
             categories: e.categories,
             lifestyles: e.lifestyles,
             seasons: e.seasons,
+          }))}
+          chatHistory={gateChat.map((t) => ({
+            role: t.role,
+            content: t.content,
+            candidates: t.candidates,
           }))}
         />
       </div>

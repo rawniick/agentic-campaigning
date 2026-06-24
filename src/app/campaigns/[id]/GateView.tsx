@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,12 @@ import {
   reopenGateAction,
 } from "./_gate-actions";
 import { visionBadgeColor } from "@/lib/qa/visionBadge";
+import type { CopyOutput } from "@/lib/copy/generateCopy";
+import { WorkspaceShell } from "./workspace/WorkspaceShell";
+import { GateStepper } from "./workspace/GateStepper";
+import { ProgressBar } from "./workspace/ProgressBar";
+import { SaveIndicator } from "./workspace/SaveIndicator";
+import { CopyChatPanel } from "./workspace/CopyChatPanel";
 
 interface LibraryEntry {
   id: string;
@@ -23,6 +29,13 @@ interface LibraryEntry {
   categories: string[];
   lifestyles: string[];
   seasons: string[];
+}
+
+// Ein Dialog-Turn aus gate_chat (de, Gate copy) — vom Server vorgeladen.
+interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+  candidates: CopyOutput | null;
 }
 
 interface Props {
@@ -65,6 +78,8 @@ interface Props {
     format_id: string;
   }>;
   libraryEntries: LibraryEntry[];
+  // Gate-1 Chat-Verlauf (de) fuer das CopyChatPanel.
+  chatHistory: ChatTurn[];
 }
 
 type GalleryAsset = Props["assets"][number];
@@ -124,19 +139,16 @@ function PlaceholderLogoWarning() {
   );
 }
 
-function GateBadge({ active, done }: { active: boolean; done: boolean }) {
-  const cls = done
-    ? "bg-green-600 text-white"
-    : active
-      ? "bg-amber-500 text-white"
-      : "bg-muted text-muted-foreground";
-  return (
-    <span
-      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${cls}`}
-    >
-      ●
-    </span>
-  );
+// Aktueller Gate-Schritt fuer den Stepper. "done" wenn fertig, sonst der aktive
+// Gate; Fallback (failed/unbekannt) zeigt den letzten Schritt.
+function stepperCurrent(
+  status: string
+): "copy" | "hero" | "layout" | "final" | "done" {
+  if (status === "done") return "done";
+  if (status === "copy_pending") return "copy";
+  if (status === "hero_pending") return "hero";
+  if (status === "layout_pending") return "layout";
+  return "final";
 }
 
 export function GateView({
@@ -148,9 +160,14 @@ export function GateView({
   layout,
   assets,
   libraryEntries,
+  chatHistory,
 }: Props) {
   const [selectedHeadlineIdx, setSelectedHeadlineIdx] = useState<number>(0);
   const [langFilter, setLangFilter] = useState<string>("all");
+  // Sichtbares Lade-/Speicher-Feedback fuer alle Gate-Mutationen (Forms laufen
+  // ueber Server-Actions; useTransition gibt dem User ein "haengt nicht"-Signal).
+  const [isPending, startTransition] = useTransition();
+  const [saved, setSaved] = useState(false);
 
   const inCopy = status === "copy_pending";
   const inHero = status === "hero_pending";
@@ -159,85 +176,103 @@ export function GateView({
   const isDone = status === "done";
   const isFailed = status === "failed";
 
-  const doneCopy = !!copy?.is_approved;
-  const doneHero = !!hero?.is_approved;
-  const doneLayout = !!layout?.is_approved;
-  const doneRender = isDone;
+  // Wrappt jede Server-Action-Form: zeigt ProgressBar/SaveIndicator und
+  // verschluckt die Action selbst NICHT (revalidatePath laeuft serverseitig).
+  function runAction(action: (fd: FormData) => Promise<void>, fd: FormData) {
+    setSaved(false);
+    startTransition(async () => {
+      await action(fd);
+      setSaved(true);
+    });
+  }
 
-  return (
-    <div className="space-y-8">
-      {/* Stepper */}
-      <ol className="flex flex-wrap gap-2 text-sm">
-        <li className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
-          <GateBadge active={inCopy} done={doneCopy} />
-          Gate 1 Copy
-        </li>
-        <li className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
-          <GateBadge active={inHero} done={doneHero} />
-          Gate 2 Hero
-        </li>
-        <li className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
-          <GateBadge active={inLayout} done={doneLayout} />
-          Gate 3 Layout
-        </li>
-        <li className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
-          <GateBadge active={inFinal} done={doneRender} />
-          Gate 4 Final
-        </li>
-        {isFailed && (
-          <li className="rounded-md border bg-red-50 px-3 py-2 text-sm text-red-800">
-            Render failed
-          </li>
-        )}
-      </ol>
+  const saveState: "idle" | "saving" | "saved" = isPending
+    ? "saving"
+    : saved
+      ? "saved"
+      : "idle";
+
+  // ----- LINKS: Konsole (Steuerelemente des aktuellen Gates) -----
+  const consolePane = (
+    <div className="space-y-6">
+      {/* Globaler Mutations-Status: sichtbar bei jeder Aktion. */}
+      <div className="flex min-h-[1.25rem] items-center justify-between">
+        <SaveIndicator state={saveState} />
+      </div>
+      <ProgressBar active={isPending} label="Wird gespeichert…" />
 
       {/* Gate 1: Copy */}
       {inCopy && copy && (
-        <section className="rounded-md border bg-card p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Gate 1 — Copy waehlen</h2>
-          <p className="mb-4 text-xs text-muted-foreground">
-            Drei Headlines generiert von Claude. Pick eine, bestaetige.
-            Subline + CTA sind fest.
-          </p>
-          <form action={approveCopyGateAction} className="space-y-4">
-            <input type="hidden" name="campaignId" value={campaignId} />
-            <input type="hidden" name="headlineIndex" value={selectedHeadlineIdx} />
-            <div className="space-y-2">
-              {copy.headlines.map((h, i) => (
-                <label
-                  key={i}
-                  className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 ${
-                    selectedHeadlineIdx === i
-                      ? "border-primary bg-primary/5"
-                      : "border-input"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    checked={selectedHeadlineIdx === i}
-                    onChange={() => setSelectedHeadlineIdx(i)}
-                    className="mt-1"
-                  />
-                  <span className="text-sm">{h}</span>
-                </label>
-              ))}
-            </div>
-            <div className="rounded-md bg-muted p-3 text-xs">
-              <div>
-                <strong>Subline:</strong> {copy.subline}
+        <section className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold">Gate 1 — Copy waehlen</h2>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Drei Headlines generiert von Claude. Pick eine, bestaetige.
+              Subline + CTA sind fest. Oder verfeinere im Chat unten.
+            </p>
+            <form
+              action={(fd) => runAction(approveCopyGateAction, fd)}
+              className="space-y-4"
+            >
+              <input type="hidden" name="campaignId" value={campaignId} />
+              <input
+                type="hidden"
+                name="headlineIndex"
+                value={selectedHeadlineIdx}
+              />
+              <div className="space-y-2">
+                {copy.headlines.map((h, i) => (
+                  <label
+                    key={i}
+                    className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 ${
+                      selectedHeadlineIdx === i
+                        ? "border-primary bg-primary/5"
+                        : "border-input"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      checked={selectedHeadlineIdx === i}
+                      onChange={() => setSelectedHeadlineIdx(i)}
+                      className="mt-1"
+                    />
+                    <span className="text-sm">{h}</span>
+                  </label>
+                ))}
               </div>
-              <div>
-                <strong>CTA:</strong> {copy.cta_label}
+              <div className="rounded-md bg-muted p-3 text-xs">
+                <div>
+                  <strong>Subline:</strong> {copy.subline}
+                </div>
+                <div>
+                  <strong>CTA:</strong> {copy.cta_label}
+                </div>
               </div>
-            </div>
-            <Button type="submit">Copy freigeben</Button>
-          </form>
+              <Button type="submit" disabled={isPending}>
+                Copy freigeben
+              </Button>
+            </form>
+          </div>
+
+          {/* Krea-Chat: Copy iterativ mit Claude verfeinern. */}
+          <div className="rounded-md border-t pt-6">
+            <h3 className="mb-3 text-sm font-semibold">Copy verfeinern (Chat)</h3>
+            <CopyChatPanel
+              campaignId={campaignId}
+              initialHistory={chatHistory}
+              currentCandidates={{
+                headlines: copy.headlines,
+                subline: copy.subline,
+                cta_label: copy.cta_label,
+              }}
+            />
+          </div>
         </section>
       )}
 
       {/* Gate 2: Hero (Library Picker + Upload) */}
       {inHero && (
-        <section className="rounded-md border bg-card p-6 shadow-sm space-y-6">
+        <section className="space-y-6">
           <div>
             <h2 className="text-lg font-semibold">Gate 2 — Hero-Bild</h2>
             <p className="text-xs text-muted-foreground">
@@ -262,11 +297,11 @@ export function GateView({
                 .
               </p>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {libraryEntries.map((e) => (
                   <form
                     key={e.id}
-                    action={selectHeroFromLibraryGateAction}
+                    action={(fd) => runAction(selectHeroFromLibraryGateAction, fd)}
                     className="space-y-2 rounded-md border bg-background p-3"
                   >
                     <input type="hidden" name="campaignId" value={campaignId} />
@@ -278,7 +313,12 @@ export function GateView({
                       className="h-28 w-full rounded border bg-muted object-cover"
                     />
                     <div className="truncate text-xs font-medium">{e.name}</div>
-                    <Button type="submit" size="sm" className="w-full">
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="w-full"
+                      disabled={isPending}
+                    >
                       Pick this
                     </Button>
                   </form>
@@ -289,7 +329,10 @@ export function GateView({
 
           <div className="rounded-md border-t pt-6">
             <h3 className="mb-3 text-sm font-semibold">Eigenes Bild hochladen</h3>
-            <form action={uploadHeroGateAction} className="space-y-4">
+            <form
+              action={(fd) => runAction(uploadHeroGateAction, fd)}
+              className="space-y-4"
+            >
               <input type="hidden" name="campaignId" value={campaignId} />
               <div className="space-y-2">
                 <Label htmlFor="hero">Bilddatei (JPG/PNG)</Label>
@@ -302,7 +345,7 @@ export function GateView({
                   className="border-input bg-background h-10 w-full rounded-md border px-3 py-2 text-sm"
                 />
               </div>
-              <Button type="submit" variant="outline">
+              <Button type="submit" variant="outline" disabled={isPending}>
                 Hero hochladen
               </Button>
             </form>
@@ -312,18 +355,28 @@ export function GateView({
 
       {/* Gate 3: Layout-Variante */}
       {inLayout && (
-        <section className="rounded-md border bg-card p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Gate 3 — Layout-Variante</h2>
-          <p className="mb-4 text-xs text-muted-foreground">
-            Wo soll der Preis stehen? Auswahl ist sicher — alle Varianten
-            sind brand-konform.
-          </p>
-          <form action={selectLayoutGateAction} className="space-y-4">
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Gate 3 — Layout-Variante</h2>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Wo soll der Preis stehen? Auswahl ist sicher — alle Varianten
+              sind brand-konform.
+            </p>
+          </div>
+          <form
+            action={(fd) => runAction(selectLayoutGateAction, fd)}
+            className="space-y-4"
+          >
             <input type="hidden" name="campaignId" value={campaignId} />
             <input type="hidden" name="masterFormat" value="dv360_halfpage" />
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3">
               <label className="flex cursor-pointer flex-col gap-2 rounded-md border p-4 hover:border-primary">
-                <input type="radio" name="variant" value="price_bottom" defaultChecked />
+                <input
+                  type="radio"
+                  name="variant"
+                  value="price_bottom"
+                  defaultChecked
+                />
                 <span className="text-sm font-medium">Price Bottom</span>
                 <span className="text-xs text-muted-foreground">
                   Hero oben, Headline mittig, Preis + CTA unten. Default.
@@ -337,165 +390,57 @@ export function GateView({
                 </span>
               </label>
             </div>
-            <Button type="submit">Layout freigeben</Button>
+            <Button type="submit" disabled={isPending}>
+              Layout freigeben
+            </Button>
           </form>
         </section>
       )}
 
       {/* Gate 4: Final */}
       {inFinal && (
-        <section className="rounded-md border bg-card p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Gate 4 — Final Render</h2>
-          <p className="mb-4 text-xs text-muted-foreground">
-            Engine rendert jetzt die Halfpage. Nach Klick: Asset entsteht in
-            Supabase Storage.
-          </p>
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Gate 4 — Final Render</h2>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Engine rendert jetzt die Halfpage. Nach Klick: Asset entsteht in
+              Supabase Storage.
+            </p>
+          </div>
           {logoPlaceholder && <PlaceholderLogoWarning />}
-          <form action={finalRenderGateAction}>
+          <form action={(fd) => runAction(finalRenderGateAction, fd)}>
             <input type="hidden" name="campaignId" value={campaignId} />
-            <Button type="submit">Rendern</Button>
+            <Button type="submit" disabled={isPending}>
+              Rendern
+            </Button>
           </form>
         </section>
       )}
 
-      {/* Done */}
+      {/* Done: Hero-in-Library + Re-Open landen in der Konsole. */}
       {isDone && (
-        <section className="rounded-md border bg-card p-6 shadow-sm">
+        <section className="space-y-2">
           <h2 className="text-lg font-semibold">Fertig</h2>
-          {(() => {
-            const renderedCount = assets.filter(
-              (a) => a.status !== "failed"
-            ).length;
-            const failedCount = assets.length - renderedCount;
-            const langs = Array.from(new Set(assets.map((a) => a.language)));
-            const shown = assets
-              .filter((a) => langFilter === "all" || a.language === langFilter)
-              .slice()
-              .sort((x, y) => assetSeverity(x) - assetSeverity(y));
-            return (
-              <>
-                {logoPlaceholder && <PlaceholderLogoWarning />}
-                <p className="mb-4 text-xs text-muted-foreground">
-                  {renderedCount} Asset(s) gerendert
-                  {failedCount > 0 ? `, ${failedCount} fehlgeschlagen` : ""}.
-                </p>
-                {assets.length > 0 && (
-                  <>
-                    <div className="mb-4 flex flex-wrap items-center gap-2">
-                      <a
-                        href={`/api/campaigns/${campaignId}/export`}
-                        className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-                      >
-                        Alle als ZIP herunterladen
-                      </a>
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        Sprache:
-                      </span>
-                      {["all", ...langs].map((l) => (
-                        <button
-                          key={l}
-                          type="button"
-                          onClick={() => setLangFilter(l)}
-                          className={`rounded border px-2 py-1 text-xs ${
-                            langFilter === l
-                              ? "bg-foreground text-background"
-                              : "bg-background"
-                          }`}
-                        >
-                          {l === "all" ? "Alle" : l.toUpperCase()}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      {shown.map((a) => (
-                        <div
-                          key={a.id}
-                          className="rounded-md border bg-background p-3"
-                        >
-                          <div className="mb-2 flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">
-                              {a.language.toUpperCase()}
-                            </span>
-                            {a.status === "failed" ? (
-                              <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-medium text-white">
-                                Fehlgeschlagen
-                              </span>
-                            ) : (
-                              <div className="flex items-center gap-1">
-                                <ConformityBadge pass={a.conformity_pass} />
-                                <VisionBadge score={a.vision_qa_score} />
-                              </div>
-                            )}
-                          </div>
-                          {a.status !== "failed" && a.conformity_pass === false && (
-                            <p className="mb-2 text-xs text-red-600">
-                              Nicht brand-konform — vom finalen ZIP-Export
-                              ausgeschlossen.
-                            </p>
-                          )}
-                          {a.status === "failed" ? (
-                            <div className="space-y-2">
-                              <p className="text-xs text-red-600">
-                                {a.render_error ?? "Render fehlgeschlagen"}
-                              </p>
-                              <form action={retryAssetGateAction}>
-                                <input
-                                  type="hidden"
-                                  name="campaignId"
-                                  value={campaignId}
-                                />
-                                <input
-                                  type="hidden"
-                                  name="formatId"
-                                  value={a.format_id}
-                                />
-                                <input
-                                  type="hidden"
-                                  name="language"
-                                  value={a.language}
-                                />
-                                <Button type="submit">Neu rendern</Button>
-                              </form>
-                            </div>
-                          ) : (
-                            <>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={a.storage_url ?? undefined}
-                                alt=""
-                                className="w-full rounded border bg-white"
-                              />
-                              <a
-                                href={a.storage_url ?? undefined}
-                                download
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mt-2 inline-block text-sm underline"
-                              >
-                                Download
-                              </a>
-                            </>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </>
-            );
-          })()}
+          <p className="text-xs text-muted-foreground">
+            Alle Assets sind rechts in der Galerie. ZIP-Download oben in der
+            Galerie-Leiste.
+          </p>
         </section>
       )}
 
       {/* Hero in Library aufnehmen — sichtbar nur wenn Hero nicht selbst aus
           der Library kam (sonst Duplikat). */}
       {isDone && hero && hero.source !== "library" && (
-        <section className="rounded-md border bg-card p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Hero in Library aufnehmen</h2>
+        <section className="rounded-md border bg-background p-4">
+          <h2 className="text-sm font-semibold">Hero in Library aufnehmen</h2>
           <p className="mb-4 text-xs text-muted-foreground">
-            Macht das verwendete Hero-Bild fuer kommende Kampagnen wiederverwendbar.
+            Macht das verwendete Hero-Bild fuer kommende Kampagnen
+            wiederverwendbar.
           </p>
-          <form action={promoteHeroToLibraryGateAction} className="space-y-4">
+          <form
+            action={(fd) => runAction(promoteHeroToLibraryGateAction, fd)}
+            className="space-y-4"
+          >
             <input type="hidden" name="campaignId" value={campaignId} />
             <div className="space-y-2">
               <Label htmlFor="lib-name">Anzeige-Name</Label>
@@ -506,7 +451,7 @@ export function GateView({
                 placeholder="z.B. Familie Picknick Sommer"
               />
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4">
               <div className="space-y-2">
                 <Label htmlFor="lib-categories">Kategorien</Label>
                 <Input
@@ -532,7 +477,7 @@ export function GateView({
                 />
               </div>
             </div>
-            <Button type="submit" variant="outline">
+            <Button type="submit" variant="outline" disabled={isPending}>
               In Library aufnehmen
             </Button>
           </form>
@@ -541,24 +486,222 @@ export function GateView({
 
       {/* Re-Open Buttons (verfuegbar ab final_pending oder spaeter) */}
       {(inFinal || isDone || isFailed) && (
-        <section className="rounded-md border border-dashed bg-card p-6 text-sm">
-          <h2 className="mb-3 font-semibold">Zurueck zu einem fr&uuml;heren Gate</h2>
+        <section className="rounded-md border border-dashed p-4 text-sm">
+          <h2 className="mb-3 font-semibold">
+            Zurueck zu einem fr&uuml;heren Gate
+          </h2>
           <p className="mb-4 text-xs text-muted-foreground">
-            <strong>Hard-Reset:</strong> alle nachgelagerten Daten werden geloescht.
+            <strong>Hard-Reset:</strong> alle nachgelagerten Daten werden
+            geloescht.
           </p>
           <div className="flex flex-wrap gap-2">
             {["copy", "hero", "layout", "final"].map((target) => (
-              <form key={target} action={reopenGateAction}>
+              <form
+                key={target}
+                action={(fd) => runAction(reopenGateAction, fd)}
+              >
                 <input type="hidden" name="campaignId" value={campaignId} />
                 <input type="hidden" name="target" value={target} />
-                <Button type="submit" variant="outline" size="sm">
-                  Gate {target === "copy" ? "1" : target === "hero" ? "2" : target === "layout" ? "3" : "4"}
+                <Button
+                  type="submit"
+                  variant="outline"
+                  size="sm"
+                  disabled={isPending}
+                >
+                  Gate{" "}
+                  {target === "copy"
+                    ? "1"
+                    : target === "hero"
+                      ? "2"
+                      : target === "layout"
+                        ? "3"
+                        : "4"}
                 </Button>
               </form>
             ))}
           </div>
         </section>
       )}
+
+      {isFailed && (
+        <div className="rounded-md border bg-red-50 px-3 py-2 text-sm text-red-800">
+          Render fehlgeschlagen — ueber die Galerie rechts einzelne Assets neu
+          rendern oder ein Gate erneut oeffnen.
+        </div>
+      )}
     </div>
+  );
+
+  // ----- RECHTS: Canvas (kontextuelle Vorschau) -----
+  let canvas: React.ReactNode;
+  if (inCopy && copy) {
+    // Gate 1: aktuelle Headline-Kandidaten gross/lesbar.
+    canvas = (
+      <div className="space-y-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Headline-Kandidaten
+        </div>
+        <div className="space-y-3">
+          {copy.headlines.map((h, i) => (
+            <div
+              key={i}
+              className={`rounded-lg border p-5 ${
+                selectedHeadlineIdx === i
+                  ? "border-primary bg-primary/5"
+                  : "border-input"
+              }`}
+            >
+              <div className="mb-1 text-xs text-muted-foreground">
+                Kandidat {i + 1}
+              </div>
+              <p className="text-2xl font-bold leading-tight">{h}</p>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-lg border bg-card p-4">
+          <p className="text-base">{copy.subline}</p>
+          <span className="mt-3 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+            {copy.cta_label}
+          </span>
+        </div>
+      </div>
+    );
+  } else if (isDone) {
+    // Done: die bestehende 44-Asset-Galerie.
+    const renderedCount = assets.filter((a) => a.status !== "failed").length;
+    const failedCount = assets.length - renderedCount;
+    const langs = Array.from(new Set(assets.map((a) => a.language)));
+    const shown = assets
+      .filter((a) => langFilter === "all" || a.language === langFilter)
+      .slice()
+      .sort((x, y) => assetSeverity(x) - assetSeverity(y));
+
+    canvas = (
+      <div>
+        {logoPlaceholder && <PlaceholderLogoWarning />}
+        <p className="mb-4 text-xs text-muted-foreground">
+          {renderedCount} Asset(s) gerendert
+          {failedCount > 0 ? `, ${failedCount} fehlgeschlagen` : ""}.
+        </p>
+        {assets.length > 0 && (
+          <>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <a
+                href={`/api/campaigns/${campaignId}/export`}
+                className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+              >
+                Alle als ZIP herunterladen
+              </a>
+              <span className="ml-2 text-xs text-muted-foreground">
+                Sprache:
+              </span>
+              {["all", ...langs].map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLangFilter(l)}
+                  className={`rounded border px-2 py-1 text-xs ${
+                    langFilter === l
+                      ? "bg-foreground text-background"
+                      : "bg-background"
+                  }`}
+                >
+                  {l === "all" ? "Alle" : l.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {shown.map((a) => (
+                <div key={a.id} className="rounded-md border bg-background p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">
+                      {a.language.toUpperCase()}
+                    </span>
+                    {a.status === "failed" ? (
+                      <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-medium text-white">
+                        Fehlgeschlagen
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <ConformityBadge pass={a.conformity_pass} />
+                        <VisionBadge score={a.vision_qa_score} />
+                      </div>
+                    )}
+                  </div>
+                  {a.status !== "failed" && a.conformity_pass === false && (
+                    <p className="mb-2 text-xs text-red-600">
+                      Nicht brand-konform — vom finalen ZIP-Export
+                      ausgeschlossen.
+                    </p>
+                  )}
+                  {a.status === "failed" ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-red-600">
+                        {a.render_error ?? "Render fehlgeschlagen"}
+                      </p>
+                      <form action={(fd) => runAction(retryAssetGateAction, fd)}>
+                        <input
+                          type="hidden"
+                          name="campaignId"
+                          value={campaignId}
+                        />
+                        <input
+                          type="hidden"
+                          name="formatId"
+                          value={a.format_id}
+                        />
+                        <input
+                          type="hidden"
+                          name="language"
+                          value={a.language}
+                        />
+                        <Button type="submit" disabled={isPending}>
+                          Neu rendern
+                        </Button>
+                      </form>
+                    </div>
+                  ) : (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={a.storage_url ?? undefined}
+                        alt=""
+                        className="w-full rounded border bg-white"
+                      />
+                      <a
+                        href={a.storage_url ?? undefined}
+                        download
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-block text-sm underline"
+                      >
+                        Download
+                      </a>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  } else {
+    // Hero/Layout/Final/Failed: dezenter Platzhalter.
+    canvas = (
+      <div className="flex h-full min-h-[12rem] items-center justify-center text-center">
+        <p className="text-sm text-muted-foreground">
+          Vorschau erscheint hier.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <WorkspaceShell
+      stepper={<GateStepper current={stepperCurrent(status)} />}
+      console={consolePane}
+      canvas={canvas}
+    />
   );
 }
