@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 import { getActiveBrandConfig } from "@/lib/brand/server";
 import { getProductsForBrand } from "@/lib/db/queries/products";
 import { Button } from "@/components/ui/button";
+import { RefreshPricesButton } from "./RefreshPricesButton";
 import {
   Table,
   TableBody,
@@ -31,6 +32,10 @@ export default async function AdminProductsPage() {
         <Link href="/admin/products/new">
           <Button>Neues Produkt</Button>
         </Link>
+      </div>
+
+      <div className="mb-6">
+        <RefreshPricesButton />
       </div>
 
       <Table>
