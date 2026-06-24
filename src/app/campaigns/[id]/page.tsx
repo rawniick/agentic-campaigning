@@ -107,15 +107,6 @@ export default async function CampaignDetailPage({ params }: PageProps) {
           }))}
         />
       </div>
-
-      <details className="mt-10 rounded-md border bg-card p-4">
-        <summary className="cursor-pointer text-sm font-medium">
-          Briefing (JSON)
-        </summary>
-        <pre className="mt-3 max-h-96 overflow-auto text-xs">
-          {JSON.stringify(campaign.brief, null, 2)}
-        </pre>
-      </details>
     </div>
   );
 }

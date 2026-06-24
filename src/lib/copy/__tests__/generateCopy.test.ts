@@ -139,6 +139,37 @@ describe("generateCopy", () => {
     }
   });
 
+  it("instruiert korrekte Orthografie + verbietet ASCII-Transliteration im System-Prompt", async () => {
+    // Regression: der Prompt war selbst ASCII-transliteriert ("fuer", "uebersetzen"),
+    // wodurch Claude die Umlaute spiegelte (fuer statt für). Der Prompt muss echte
+    // Umlaute modellieren UND Transliteration explizit verbieten.
+    const llm = vi.fn().mockResolvedValueOnce({
+      data: { headlines: ["A", "B", "C"], subline: "S", cta_label: "C" },
+      rawText: "{}",
+      tokensUsed: { input: 50, output: 50, total: 100 },
+      model: "claude-sonnet-4-6",
+      stopReason: "end_turn",
+    });
+
+    await generateCopy(db, {
+      campaignId,
+      brief: VALID_BRIEF,
+      brandConfig,
+      language: "de",
+      disclaimers: [],
+      llm,
+    });
+
+    const { systemPrompt } = llm.mock.calls[0][0];
+    // Explizite Regel vorhanden
+    expect(systemPrompt).toContain("Orthografie");
+    expect(systemPrompt).toContain("ä ö ü");
+    // Prompt modelliert echte Umlaute, nicht die Transliteration
+    expect(systemPrompt).toContain("für");
+    expect(systemPrompt).not.toContain("eingefuegt");
+    expect(systemPrompt).not.toContain("uebersetzen");
+  });
+
   it("uses the standard voice for a standard campaign — not the flash_sale cell, not the default", async () => {
     // Gleiche Zielgruppe (sozial), beide Art-Zellen vorhanden: der Lookup muss
     // die art-spezifische Standard-Zelle waehlen (kein Flash-Dringlichkeitston).
