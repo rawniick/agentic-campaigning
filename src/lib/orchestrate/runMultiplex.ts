@@ -144,6 +144,44 @@ interface GateData {
   hero_url: string;
   hero_source: string;
   variant: string;
+  // V1.2 Doppelpreis-Anatomie: Produktname + Standard-/Streichpreis (Roh-String aus
+  // der DB, noch nicht Schweizer-formatiert). Beide koennen null/leer sein → das
+  // Template faellt dann auf den Einzelpreis (pricePromo) zurueck. product_kategorie
+  // speist den Channel-Footer (mobile · tv · internet als Default).
+  product_name: string | null;
+  price_standard: string | null;
+  product_kategorie: string | null;
+}
+
+// Schweizer Preis-Formatierung fuer den Streichpreis: ganze Franken → "50.–",
+// sonst zwei Nachkommastellen "50.95". Leere/null/unparsbare Eingabe → undefined,
+// damit das Template auf den Einzelpreis zurueckfaellt. COMPLIANCE: formatiert nur
+// den display-string, modifiziert den Preiswert NIE (gleicher Wert, Schweizer Schreibweise).
+function formatPriceStandard(raw: string | null | undefined): string | undefined {
+  if (raw == null) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === "") return undefined;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return undefined;
+  const fixed = n.toFixed(2);
+  // ganze Franken (".00") → "<ganz>.–", sonst "50.95"
+  if (fixed.endsWith(".00")) {
+    return `${fixed.slice(0, -3)}.–`;
+  }
+  return fixed;
+}
+
+// Channel-Footer ableiten: Default "mobile · tv · internet". Wenn die Produkt-
+// Kategorie gesetzt ist und auf reine Mobile-Produkte hindeutet, nur "mobile".
+// (Konservativ — bei Unsicherheit immer der volle Default.)
+function deriveChannels(productKategorie: string | null): string {
+  const DEFAULT = "mobile · tv · internet";
+  if (!productKategorie) return DEFAULT;
+  const k = productKategorie.trim().toLowerCase();
+  if (k === "mobile" || k === "mobile_abo" || k === "mobile-abo") {
+    return "mobile";
+  }
+  return DEFAULT;
 }
 
 function disclaimerColumnFor(language: string): "text_de" | "text_fr" | "text_it" | "text_en" {
@@ -179,18 +217,28 @@ async function loadGateDataPerLanguage(db: Db, campaignId: string): Promise<Gate
     hero_url: string;
     hero_source: string;
     variant: string;
+    product_name: string | null;
+    price_standard: string | null;
+    produkt_kategorie: string | null;
   }>(
+    // LEFT JOIN products: product_id ist nullable (ON DELETE SET NULL) — bei
+    // geloeschtem Produkt darf die Zeile (und damit die Sprache) NICHT verschwinden.
+    // product_name/price_standard sind dann null → Template faellt auf Einzelpreis.
     `SELECT
         c.brand_id, c.art, c.price_promo::text AS price_promo, c.price_suffix,
         cc.language, cc.headlines, cc.subline, cc.cta_label,
         cc.selected_headline_idx, cc.disclaimer_ids,
         ch.storage_url AS hero_url,
         ch.source AS hero_source,
-        cl.variant
+        cl.variant,
+        p.name AS product_name,
+        c.price_standard::text AS price_standard,
+        c.produkt_kategorie
        FROM campaigns c
        JOIN campaign_copy cc ON cc.campaign_id = c.id AND cc.is_approved = true
        LEFT JOIN campaign_hero ch ON ch.campaign_id = c.id
        LEFT JOIN campaign_layout cl ON cl.campaign_id = c.id
+       LEFT JOIN products p ON p.id = c.product_id
       WHERE c.id = $1`,
     [campaignId]
   );
@@ -254,6 +302,9 @@ async function loadGateDataPerLanguage(db: Db, campaignId: string): Promise<Gate
       hero_url: row.hero_url,
       hero_source: row.hero_source,
       variant: row.variant,
+      product_name: row.product_name,
+      price_standard: row.price_standard,
+      product_kategorie: row.produkt_kategorie,
     };
   });
 }
@@ -285,6 +336,18 @@ async function renderOneFormat(
 
   const emphasis = emphasisForArt(data.kampagne_art);
 
+  // Doppelpreis-Gating: NUR wenn Produktname UND Standard-/Streichpreis vorliegen,
+  // gehen beide als Display-Props raus. Fehlt eines → beide undefined → Template
+  // rendert den Einzelpreis (pricePromo). COMPLIANCE: priceStandard wird nur
+  // Schweizer-formatiert (50.– / 50.95), der Wert NIE veraendert.
+  const priceStandardFmt = formatPriceStandard(data.price_standard);
+  const productName =
+    data.product_name && data.product_name.trim() !== "" && priceStandardFmt
+      ? data.product_name
+      : undefined;
+  const priceStandard = productName ? priceStandardFmt : undefined;
+  const channels = deriveChannels(data.product_kategorie);
+
   // heroSrc ist bereits die eingebettete Data-URI (einmal pro Lauf aufgeloest, da
   // alle 44 Assets denselben Hero teilen) — kein Fetch pro Format.
   const jsx = React.createElement(component, {
@@ -302,6 +365,9 @@ async function renderOneFormat(
     style,
     priceBlobSrc,
     aiLabel,
+    productName,
+    priceStandard,
+    channels,
   });
 
   const key = `${brandConfig.brand.slug}/${campaignId}/${format.code}-${data.language}.png`;
@@ -339,7 +405,13 @@ async function renderOneFormat(
     conformity_details: { checks: conformity.checks },
   });
 
-  // Vision-QA ist best-effort: ein QA-Fehler darf das Asset nicht failen.
+  // Vision-QA ist best-effort: ein QA-Fehler darf das Asset NICHT failen. Das harte
+  // Auslieferungs-Gate ist der deterministische checkBrandConformity oben
+  // (conformity_pass) — der blockt den ZIP-Export separat. Vision-QA ist die weiche,
+  // LLM-basierte Zusatzpruefung; faellt sie aus, wird das nicht mehr stumm
+  // verschluckt, sondern (a) eskaliert via console.error UND (b) als
+  // {error,...} in vision_qa_details_json persistiert, damit der Ausfall in der
+  // Galerie/Audit sichtbar ist (vision_qa_score bleibt NULL = "nicht bewertet").
   if (visionClient) {
     try {
       await runVisionQA(db, visionClient, {
@@ -350,11 +422,31 @@ async function renderOneFormat(
         formatCode: format.code,
       });
     } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
       console.error(
         `[runMultiplex] Vision-QA fehlgeschlagen fuer Asset ${asset.id} ` +
-          `(best-effort, Asset bleibt gueltig):`,
+          `(best-effort, Asset bleibt gueltig, hartes Gate = conformity_pass):`,
         e
       );
+      // Ausfall persistieren — selbst best-effort: ein DB-Fehler hier darf das Asset
+      // erst recht nicht failen, daher zusaetzlich umschlossen.
+      try {
+        await db.query(
+          `UPDATE assets
+              SET vision_qa_details_json = $2::jsonb,
+                  updated_at = now()
+            WHERE id = $1`,
+          [
+            asset.id,
+            JSON.stringify({ error: errMsg, stage: "vision_qa", at: new Date().toISOString() }),
+          ]
+        );
+      } catch (persistErr) {
+        console.error(
+          `[runMultiplex] Konnte Vision-QA-Fehler fuer Asset ${asset.id} nicht persistieren:`,
+          persistErr
+        );
+      }
     }
   }
 

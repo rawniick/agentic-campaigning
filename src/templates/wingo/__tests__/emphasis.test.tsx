@@ -33,9 +33,14 @@ function priceColor(html: string): string | undefined {
   return matches.at(-1)?.[1]?.toLowerCase();
 }
 
-// V1.1: Flash Sale ist preis-getrieben (Preis im Akzent = Dringlichkeit),
-// Standard ist botschafts-getrieben (Preis neutral). Der einzige visuelle
-// Unterschied ist das Emphasis-Treatment des Preises, gesetzt per `emphasis`-Prop.
+// V1.2: Flash Sale rendert die kanonische Anatomie — der Preis liegt im weissen
+// Stern-Blob und ist daher DUNKEL (#292B2D ink), NICHT im Brand-Akzent-Rot (der
+// rote Vollflaechen-BG ist das Dringlichkeits-Signal, nicht die Preisfarbe).
+// Standard bleibt botschafts-getrieben: der Preis ist neutral (NICHT im Akzent).
+// Der visuelle Flash-vs-Standard-Unterschied ist das Emphasis-Treatment, gesetzt
+// per `emphasis`-Prop.
+const INK = "#292b2d"; // dunkler Preis im weissen Flash-Blob (lowercase fuer Vergleich)
+
 describe("template emphasis — price treatment by campaign art", () => {
   const tokens = loadBrandTokens("wingo", { baseDir: FIXTURE_BASE_DIR });
   const primary = tokens.colors.primary.hex.toLowerCase();
@@ -55,11 +60,13 @@ describe("template emphasis — price treatment by campaign art", () => {
   const codes = listRegisteredFormatCodes("flash_sale");
 
   it.each(codes)(
-    "%s: urgency (default) paints the promo price in the brand accent",
+    "%s: urgency (default, Flash) paints the promo price DARK in the blob (not the accent)",
     (code) => {
       const Component = findTemplate(code, "flash_sale")!;
       const html = renderToStaticMarkup(React.createElement(Component, baseProps));
-      expect(priceColor(html)).toBe(primary);
+      // Neuer Vertrag: Preis dunkel im weissen Stern-Blob (#292B2D), NICHT Rot.
+      expect(priceColor(html)).toBe(INK);
+      expect(priceColor(html)).not.toBe(primary);
     }
   );
 

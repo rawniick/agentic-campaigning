@@ -41,9 +41,10 @@ describe("FlashSaleRectangle (300x250)", () => {
     expect(html).toContain("5G im Swisscom Netz");
   });
 
-  it("emits hero image and logo as <img> elements", () => {
+  it("emits the logo as <img> (Hero entfaellt im kompakten 300x250 Rectangle)", () => {
     const html = renderToStaticMarkup(<FlashSaleRectangle {...baseProps} />);
-    expect(html).toContain('src="https://example.test/hero.jpg"');
+    // 300x250 ist zu schmal fuer eine Hero-Spalte → die freigestellte Person
+    // wird im kompakten Layout bewusst weggelassen, das Logo bleibt Pflicht.
     expect(html).toContain('src="https://example.test/wingo-lockup.svg"');
   });
 

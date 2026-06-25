@@ -70,6 +70,25 @@ BEGIN
     )
   ON CONFLICT (brand_id, slug) DO NOTHING;
 
+  -- Generischer Aktions-/Preis-Disclaimer (Pflicht auf JEDER Kampagne).
+  -- conditions {} + leere applies_to_categories => matched JEDES Produkt (alle
+  -- Kategorien, alle Netze). Das ist der eigentliche Legal-Line-Text (Mindest-
+  -- vertragslaufzeit / Preise inkl. MwSt.), der auf jedem Render erscheinen muss
+  -- — vorher fehlte er, sodass nur "5G im Swisscom Netz" auf den Assets stand.
+  INSERT INTO disclaimers
+    (brand_id, slug, name, conditions_json, applies_to_categories,
+     text_de, text_fr, text_it, text_en, is_required)
+    VALUES (
+      v_wingo_id, 'aktion_preis_standard', 'Aktions-/Preis-Disclaimer (Standard)',
+      '{}'::jsonb, ARRAY[]::text[],
+      'Aktion zeitlich begrenzt. Mindestvertragslaufzeit 24 Monate. Preise in CHF inkl. MwSt. Es gelten die AGB von Wingo.',
+      'Offre limitee dans le temps. Duree minimale du contrat 24 mois. Prix en CHF, TVA incluse. Les CG de Wingo s''appliquent.',
+      'Offerta a tempo limitato. Durata minima del contratto 24 mesi. Prezzi in CHF, IVA inclusa. Si applicano le CG di Wingo.',
+      'Offer for a limited time only. Minimum contract term 24 months. Prices in CHF incl. VAT. Wingo''s GTC apply.',
+      true
+    )
+  ON CONFLICT (brand_id, slug) DO NOTHING;
+
   -- Sample-Produkt fuer Tracer-Bullet-Demo
   INSERT INTO products (brand_id, name, category, price_promo, price_standard, price_suffix, link, features, sku, network)
     VALUES (

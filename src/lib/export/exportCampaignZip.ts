@@ -67,16 +67,28 @@ export async function exportCampaignZip(
         -- Brand-Farbe fehlt) gehoeren NICHT in den finalen Export. conformity_pass=NULL
         -- (Legacy/ungeprueft) bleibt zugelassen; nur explizit false wird geblockt.
         AND a.conformity_pass IS NOT FALSE
+        -- QA-Gate: Die Claude-Vision-QA war bisher rein advisory. Hier wird sie zum
+        -- ECHTEN Export-Blocker, aber NUR bei klaren Durchfaellen — NULL (QA evtl. nie
+        -- gelaufen) bleibt bewusst zugelassen, damit ungepruefte Assets nicht still
+        -- aus dem Export fallen.
+        --   MIN_VISION_QA_SCORE   = 0.7  (Gesamt-Mittel ueber alle vier Achsen)
+        --   MIN_VISION_QA_SAFEZONE = 0.6 (Logo-Schutzbereich; grobe Verletzung = KO)
+        AND (a.vision_qa_score IS NULL OR a.vision_qa_score >= 0.7)
+        AND (
+          a.vision_qa_details_json IS NULL
+          OR (a.vision_qa_details_json->'checks'->>'safezone')::float >= 0.6
+        )
       ORDER BY fs.format_bezeichnung, a.language`,
     [campaignId]
   );
 
   // Leeres Ergebnis NIE als (valides) leeres ZIP ausliefern — sonst laedt der
   // Marketer eine 0-Datei-ZIP ohne zu wissen warum. Haeufigster Fall: alle Assets
-  // wegen fehlendem echten Logo brand-nicht-konform (conformity_pass=false).
+  // wegen fehlendem echten Logo brand-nicht-konform (conformity_pass=false) oder
+  // an der Vision-QA durchgefallen (Score < 0.7 bzw. Safezone-Verletzung < 0.6).
   if (res.rows.length === 0) {
     throw new EmptyExportError(
-      "Keine exportierbaren Assets — entweder noch nicht gerendert, oder alle brand-nicht-konform (z.B. Platzhalter-Logo). Siehe Gallery."
+      "Keine exportierbaren Assets — entweder noch nicht gerendert, oder alle blockiert: brand-nicht-konform (z.B. Platzhalter-Logo) oder an der Vision-QA durchgefallen (Score < 0.7 bzw. Logo-Safezone verletzt). Siehe Gallery."
     );
   }
 

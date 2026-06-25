@@ -105,4 +105,28 @@ describe("matchDisclaimers", () => {
 
     expect(result).toHaveLength(0);
   });
+
+  // Regression: auf den Renders erschien nur "5G im Swisscom Netz", nicht der
+  // eigentliche Preis-/Aktions-Legal-Text — weil der generische {}-Disclaimer
+  // nicht geseedet war. Hier: der generische Aktions-/Preis-Disclaimer (conditions
+  // {}, applies_to []) MUSS fuer ein 5G-Mobile-Produkt MIT zurueckkommen, neben
+  // dem 5G-Hinweis. So ist garantiert, dass die Legal-Line tatsaechlich rendert.
+  it("includes the generic action/price disclaimer for a 5G mobile product", async () => {
+    await seedDisclaimer("5g_swisscom_netz", { network: "5g" }, ["mobile"]);
+    await seedDisclaimer("aktion_preis_standard", {}, []);
+
+    const result = await matchDisclaimers(db, wingoId, {
+      category: "mobile",
+      network: "5g",
+    });
+
+    // beide Pflichttexte (ORDER BY slug: aktion_… vor 5g_…)
+    expect(result.map((d) => d.slug).sort()).toEqual([
+      "5g_swisscom_netz",
+      "aktion_preis_standard",
+    ]);
+    expect(
+      result.some((d) => d.slug === "aktion_preis_standard")
+    ).toBe(true);
+  });
 });

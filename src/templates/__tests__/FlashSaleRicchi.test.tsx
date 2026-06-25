@@ -47,9 +47,19 @@ describe("FlashSaleRicchi (320x416)", () => {
     expect(html).toContain('src="https://example.test/wingo-lockup.svg"');
   });
 
-  it("uses the brand primary color for the promo price", () => {
+  // V1.2-Vertrag: Ricchi rendert jetzt die kanonische Flash-Anatomie
+  // (CanonicalPortrait). Der Preis liegt DUNKEL (#292B2D) im weissen Stern-Blob,
+  // NICHT in der Brand-Primaerfarbe (der rote Vollflaechen-BG ist das
+  // Dringlichkeits-Signal). Die alte "Preis im Akzent"-Assertion gilt nicht mehr.
+  it("renders the promo price DARK in the blob (NOT the brand primary)", () => {
     const html = renderToStaticMarkup(<FlashSaleRicchi {...baseProps} />);
-    expect(html).toContain(tokens.colors.primary.hex);
+    const priceIdx = html.indexOf("19.95");
+    const before = html.slice(0, priceIdx);
+    const lastColor = [...before.matchAll(/[;"]color:\s*(#[0-9a-fA-F]{3,8})/g)]
+      .at(-1)?.[1]
+      ?.toLowerCase();
+    expect(lastColor).toBe("#292b2d");
+    expect(lastColor).not.toBe(tokens.colors.primary.hex.toLowerCase());
   });
 
   it("specifies the 320x416 outer dimensions", () => {

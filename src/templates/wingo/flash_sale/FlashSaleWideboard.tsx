@@ -1,13 +1,11 @@
 import type { ReactElement } from "react";
 import type { BrandTokens } from "../../../lib/brand/loadTokens";
-import {
-  AiLabelOverlay,
-  type AiLabelConfig,
-} from "../../../lib/render/AiLabelOverlay";
-import { resolveTemplateStyle, type CampaignStyle } from "../campaignStyle";
+import type { AiLabelConfig } from "../../../lib/render/AiLabelOverlay";
+import type { CampaignStyle } from "../campaignStyle";
+import { CanonicalLandscape } from "./CanonicalLandscape";
 
-// Wingo Flash Sale — Wideboard XL 994x500 (DV360).
-// Aspect ~2:1. Hero links 480px x 500, Content rechts mit groesserer Type-Hierarchy.
+// Wingo Flash Sale — Wideboard XL 994x500 (DV360). Aspect ~2:1.
+// Duenner Wrapper um das kanonische Landscape-Layout (CanonicalLandscape).
 
 export type FlashSaleWideboardVariant = "price_top" | "price_bottom";
 
@@ -24,216 +22,16 @@ export interface FlashSaleWideboardProps {
   variant?: FlashSaleWideboardVariant;
   emphasis?: "urgency" | "neutral";
   style?: CampaignStyle;
-  // Weisser Stern-Blob als Preis-Container (flash_sale). Vom Orchestrator gesetzt.
   priceBlobSrc?: string;
   aiLabel?: AiLabelConfig;
+  productName?: string;
+  priceStandard?: string;
+  channels?: string;
 }
 
 const WIDTH = 994;
 const HEIGHT = 500;
-const HERO_WIDTH = 480;
-const DISCLAIMER_H = 28;
-const MAIN_H = HEIGHT - DISCLAIMER_H;
-
-// Blob-Groessen: priceCtaRow ist hoehen-limitiert (alignItems:center). Blob ~ Row-Hoehe,
-// damit er bequem neben dem CTA-Button sitzt ohne den Content-Slot zu sprengen.
-const BLOB = 130;
-const PRICE_FS = 36;
-const SUFFIX_FS = 13;
 
 export function FlashSaleWideboard(props: FlashSaleWideboardProps): ReactElement {
-  const t = props.tokens;
-  const s = resolveTemplateStyle(props);
-  const headlineFont = t.typography?.fonts?.headline?.family ?? "Inter";
-  const variant: FlashSaleWideboardVariant = props.variant ?? "price_bottom";
-
-  const heroCol = (
-    <div
-      key="hero"
-      style={{
-        display: "flex",
-        width: HERO_WIDTH,
-        height: MAIN_H,
-        overflow: "hidden",
-      }}
-    >
-      <img
-        src={props.heroImageUrl}
-        alt=""
-        style={{ width: HERO_WIDTH, height: MAIN_H, objectFit: "cover" }}
-      />
-    </div>
-  );
-
-  const logoBlock = (
-    <div key="logo" style={{ display: "flex", paddingBottom: 16 }}>
-      {/* objectFit:contain — Logo proportional in den Slot, nie verzerren (KO) */}
-      <img
-        src={props.logoSrc}
-        alt="Wingo"
-        style={{ width: 132, height: 40, objectFit: "contain" }}
-      />
-    </div>
-  );
-
-  const headlineBlock = (
-    <div
-      key="headline"
-      style={{
-        display: "flex",
-        fontSize: 56,
-        fontWeight: 700,
-        lineHeight: 1.05,
-        color: s.foreground,
-        paddingBottom: 8,
-      }}
-    >
-      {props.headline}
-    </div>
-  );
-
-  const sublineBlock = (
-    <div
-      key="subline"
-      style={{
-        display: "flex",
-        fontSize: 22,
-        fontWeight: 400,
-        lineHeight: 1.3,
-        color: s.foreground,
-        paddingBottom: 16,
-      }}
-    >
-      {props.subline}
-    </div>
-  );
-
-  // Flash Sale: Preis im weissen Wingo-Stern-Blob (dunkler Text). Sonst plain.
-  // Der Blob ERSETZT nur den Preis-Teil der Row; der CTA-Button bleibt daneben.
-  const priceEl =
-    s.priceInBlob && props.priceBlobSrc ? (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          width: BLOB,
-          height: BLOB,
-          backgroundImage: `url(${props.priceBlobSrc})`,
-          backgroundSize: "100% 100%",
-          color: "#292B2D",
-        }}
-      >
-        <span style={{ fontSize: PRICE_FS, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
-        <span style={{ fontSize: SUFFIX_FS, fontWeight: 400 }}>{props.priceSuffix}</span>
-      </div>
-    ) : (
-      <div style={{ display: "flex", alignItems: "baseline", color: s.priceColor }}>
-        <span style={{ fontSize: 72, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
-        <span style={{ fontSize: 24, fontWeight: 400, marginLeft: 6 }}>{props.priceSuffix}</span>
-      </div>
-    );
-
-  const priceCtaRow = (
-    <div
-      key="price_cta"
-      style={{
-        display: "flex",
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 24,
-      }}
-    >
-      {priceEl}
-      <div
-        style={{
-          display: "flex",
-          backgroundColor: s.ctaBackground,
-          color: s.ctaText,
-          padding: "14px 24px",
-          fontSize: 20,
-          fontWeight: 700,
-          borderRadius: 6,
-        }}
-      >
-        {props.ctaLabel}
-      </div>
-    </div>
-  );
-
-  const contentOrder =
-    variant === "price_top"
-      ? [priceCtaRow, headlineBlock, sublineBlock]
-      : [headlineBlock, sublineBlock, priceCtaRow];
-
-  const contentCol = (
-    <div
-      key="content"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        width: WIDTH - HERO_WIDTH,
-        height: MAIN_H,
-        padding: "32px 32px",
-        justifyContent: "center",
-      }}
-    >
-      {logoBlock}
-      {contentOrder}
-    </div>
-  );
-
-  const mainRow = (
-    <div
-      key="main"
-      style={{
-        display: "flex",
-        flexDirection: "row",
-        width: WIDTH,
-        height: MAIN_H,
-      }}
-    >
-      {heroCol}
-      {contentCol}
-    </div>
-  );
-
-  const disclaimerBar = (
-    <div
-      key="disclaimer"
-      style={{
-        display: "flex",
-        width: WIDTH,
-        height: DISCLAIMER_H,
-        padding: "0 32px",
-        alignItems: "center",
-        fontSize: 12,
-        lineHeight: 1.2,
-        color: s.disclaimerColor,
-      }}
-    >
-      {props.disclaimer}
-    </div>
-  );
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        width: WIDTH,
-        height: HEIGHT,
-        backgroundColor: s.background,
-        fontFamily: headlineFont,
-        color: s.foreground,
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      {mainRow}
-      {disclaimerBar}
-      {props.aiLabel && <AiLabelOverlay config={props.aiLabel} />}
-    </div>
-  );
+  return <CanonicalLandscape {...props} width={WIDTH} height={HEIGHT} />;
 }

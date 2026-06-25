@@ -57,7 +57,12 @@ describe("renderToPng", () => {
 
   // KO-Real-Boundary: der ECHTE Satori/resvg-Render muss das Hero-Bild tatsaechlich
   // malen. Frueher bekam Satori eine Remote-URL (die es nicht fetcht) -> Hero blank.
-  // Hier als eingebettete Data-URI -> der Hero-Bereich darf NICHT die BG-Farbe sein.
+  // Hier als eingebettete Data-URI -> irgendwo im Hero-Bereich muss Blau auftauchen.
+  //
+  // V1.2 kanonische Anatomie: die freigestellte Person blutet unten-rechts an den
+  // Rand (position:absolute, object-fit:contain) statt im fixen Top-Slot zu sitzen.
+  // Statt eines fixen Punkts scannen wir robust eine Region im unteren/rechten
+  // Viertel nach einem blau-dominanten Pixel — unabhaengig vom exakten contain-Fit.
   it("paints the embedded hero image into the hero region (real render, not blank)", async () => {
     const tokens = loadBrandTokens("wingo", { baseDir: FIXTURE_BASE_DIR });
 
@@ -96,12 +101,18 @@ describe("renderToPng", () => {
       const i = (y * info.width + x) * info.channels;
       return { r: data[i], g: data[i + 1], b: data[i + 2] };
     };
+    const isBlue = (p: { r: number; g: number; b: number }) =>
+      p.b > 150 && p.r < 120 && p.g < 120;
 
-    // Default-Variant 'price_bottom': logo (~48px) → hero (200px). Mitte des Heros.
-    const hero = at(150, 140);
-    expect(hero.b).toBeGreaterThan(150); // Blau dominiert → Hero wurde gemalt
-    expect(hero.r).toBeLessThan(120);
-    expect(hero.g).toBeLessThan(120);
+    // Hero blutet unten-rechts: scanne das untere-rechte Viertel (x in [150,300),
+    // y in [300,600)) und verlange mindestens ein blau-dominantes Pixel.
+    let bluePixels = 0;
+    for (let y = 300; y < info.height; y += 6) {
+      for (let x = 150; x < info.width; x += 6) {
+        if (isBlue(at(x, y))) bluePixels++;
+      }
+    }
+    expect(bluePixels).toBeGreaterThan(0); // Hero wurde tatsaechlich gemalt
   }, 30_000);
 
   // Real-Boundary fuer V1.1 Standard: ein ECHT gerendertes Asset mit

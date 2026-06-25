@@ -1,16 +1,13 @@
 import type { ReactElement } from "react";
 import type { BrandTokens } from "../../../lib/brand/loadTokens";
-import {
-  AiLabelOverlay,
-  type AiLabelConfig,
-} from "../../../lib/render/AiLabelOverlay";
-import { resolveTemplateStyle, type CampaignStyle } from "../campaignStyle";
+import type { AiLabelConfig } from "../../../lib/render/AiLabelOverlay";
+import type { CampaignStyle } from "../campaignStyle";
+import { CanonicalPortrait } from "./CanonicalPortrait";
 
-// Wingo Flash Sale — Display Halfpage 300x600 (DV360)
-// Satori-kompatibel: ausschliesslich Inline-Styles. Layout-Variants:
-//   - 'price_bottom' (Default): logo → hero → headline → subline → price → cta → disclaimer
-//   - 'price_top':              logo → price → headline → subline → hero → cta → disclaimer
-// Brand-Mechanik: Grauer BG, Akzentfarbe Rot fuer Preis + CTA.
+// Wingo Flash Sale — Display Halfpage 300x600 (DV360).
+// Duenner Format-Wrapper: rendert die kanonische Portrait-Anatomie
+// (CanonicalPortrait) mit den Halfpage-Massen. Look-and-Feel + Art-Gating
+// (Flash-Chrome vs. neutrale Standard-Variante) leben in CanonicalPortrait.
 
 export type FlashSaleHalfpageVariant = "price_top" | "price_bottom";
 
@@ -27,166 +24,16 @@ export interface FlashSaleHalfpageProps {
   variant?: FlashSaleHalfpageVariant;
   emphasis?: "urgency" | "neutral";
   style?: CampaignStyle;
-  // Weisser Stern-Blob als Preis-Container (flash_sale). Vom Orchestrator gesetzt.
   priceBlobSrc?: string;
   aiLabel?: AiLabelConfig;
+  productName?: string;
+  priceStandard?: string;
+  channels?: string;
 }
 
 const WIDTH = 300;
 const HEIGHT = 600;
 
 export function FlashSaleHalfpage(props: FlashSaleHalfpageProps): ReactElement {
-  const t = props.tokens;
-  const s = resolveTemplateStyle(props);
-  const headlineFont = t.typography?.fonts?.headline?.family ?? "Inter";
-  const variant: FlashSaleHalfpageVariant = props.variant ?? "price_bottom";
-
-  // Slot-Bloecke einmal definieren, dann je nach Variant unterschiedlich anordnen.
-  const logoBlock = (
-    <div key="logo" style={{ display: "flex", padding: "16px 16px 8px 16px" }}>
-      {/* objectFit:contain — Logo proportional in den Slot, nie verzerren (KO) */}
-      <img
-        src={props.logoSrc}
-        alt="Wingo"
-        style={{ width: 80, height: 24, objectFit: "contain" }}
-      />
-    </div>
-  );
-
-  const heroBlock = (
-    <div key="hero" style={{ display: "flex", width: WIDTH, height: 200, overflow: "hidden" }}>
-      <img
-        src={props.heroImageUrl}
-        alt=""
-        style={{ width: WIDTH, height: 200, objectFit: "cover" }}
-      />
-    </div>
-  );
-
-  const headlineBlock = (
-    <div
-      key="headline"
-      style={{
-        display: "flex",
-        padding: "12px 16px 4px 16px",
-        fontSize: 22,
-        fontWeight: 700,
-        lineHeight: 1.15,
-        color: s.foreground,
-      }}
-    >
-      {props.headline}
-    </div>
-  );
-
-  const sublineBlock = (
-    <div
-      key="subline"
-      style={{
-        display: "flex",
-        padding: "0 16px 8px 16px",
-        fontSize: 13,
-        fontWeight: 400,
-        lineHeight: 1.4,
-        color: s.foreground,
-      }}
-    >
-      {props.subline}
-    </div>
-  );
-
-  // Flash Sale: Preis im weissen Wingo-Stern-Blob (dunkler Text). Sonst plain.
-  const priceBlock =
-    s.priceInBlob && props.priceBlobSrc ? (
-      <div key="price" style={{ display: "flex", padding: "8px 16px 0 16px" }}>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 168,
-            height: 168,
-            backgroundImage: `url(${props.priceBlobSrc})`,
-            backgroundSize: "100% 100%",
-            color: "#292B2D",
-          }}
-        >
-          <span style={{ fontSize: 46, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
-          <span style={{ fontSize: 15, fontWeight: 400 }}>{props.priceSuffix}</span>
-        </div>
-      </div>
-    ) : (
-      <div
-        key="price"
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          padding: "8px 16px 0 16px",
-          color: s.priceColor,
-        }}
-      >
-        <span style={{ fontSize: 44, fontWeight: 700, lineHeight: 1 }}>{props.pricePromo}</span>
-        <span style={{ fontSize: 16, fontWeight: 400, marginLeft: 4 }}>{props.priceSuffix}</span>
-      </div>
-    );
-
-  const ctaBlock = (
-    <div key="cta" style={{ display: "flex", padding: "12px 16px 0 16px" }}>
-      <div
-        style={{
-          display: "flex",
-          backgroundColor: s.ctaBackground,
-          color: s.ctaText,
-          padding: "10px 18px",
-          fontSize: 14,
-          fontWeight: 700,
-          borderRadius: 4,
-        }}
-      >
-        {props.ctaLabel}
-      </div>
-    </div>
-  );
-
-  const spacer = <div key="spacer" style={{ display: "flex", flex: 1 }} />;
-
-  const disclaimerBlock = (
-    <div
-      key="disclaimer"
-      style={{
-        display: "flex",
-        padding: "4px 16px 8px 16px",
-        fontSize: 8,
-        lineHeight: 1.2,
-        color: s.disclaimerColor,
-      }}
-    >
-      {props.disclaimer}
-    </div>
-  );
-
-  const order =
-    variant === "price_top"
-      ? [logoBlock, priceBlock, headlineBlock, sublineBlock, heroBlock, ctaBlock, spacer, disclaimerBlock]
-      : [logoBlock, heroBlock, headlineBlock, sublineBlock, priceBlock, ctaBlock, spacer, disclaimerBlock];
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        width: WIDTH,
-        height: HEIGHT,
-        backgroundColor: s.background,
-        fontFamily: headlineFont,
-        color: s.foreground,
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      {order}
-      {props.aiLabel && <AiLabelOverlay config={props.aiLabel} />}
-    </div>
-  );
+  return <CanonicalPortrait {...props} width={WIDTH} height={HEIGHT} />;
 }
