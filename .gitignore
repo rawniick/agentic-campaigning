@@ -53,3 +53,5 @@ next-env.d.ts
 
 # Ship-Proof-Output (generierte 44-Asset-ZIP + Samples)
 /scripts/ship-proof/
+# Render-Preview-Output (manuelle previewSamples-Harness, PREVIEW=1)
+/scripts/preview/

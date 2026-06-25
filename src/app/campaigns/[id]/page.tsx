@@ -54,8 +54,10 @@ export default async function CampaignDetailPage({ params }: PageProps) {
     db.query<{ slug: string }>(`SELECT slug FROM brands WHERE id = $1`, [
       campaign.brand_id,
     ]),
-    // Gate-1 Chat-Verlauf (de) fuer das Refine-Panel.
-    getGateChat(db, id, "copy", "de"),
+    // Gate-1 Chat-Verlauf (de). Defensiv: fehlt die gate_chat-Tabelle (Migration
+    // 017 noch nicht in Prod), faellt es auf leere History zurueck statt die Seite
+    // zu crashen — Persistenz aktiviert sich, sobald 017 eingespielt ist.
+    getGateChat(db, id, "copy", "de").catch(() => []),
   ]);
 
   // Warnt in der Gallery, falls noch kein echtes Wingo-Lockup vorliegt und der
