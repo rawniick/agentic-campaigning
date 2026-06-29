@@ -21,6 +21,8 @@ import { GateStepper } from "./workspace/GateStepper";
 import { ProgressBar } from "./workspace/ProgressBar";
 import { SaveIndicator } from "./workspace/SaveIndicator";
 import { CopyChatPanel } from "./workspace/CopyChatPanel";
+import { HeroGenPanel } from "./workspace/HeroGenPanel";
+import type { HeroCandidateView } from "./_gate-actions";
 
 interface LibraryEntry {
   id: string;
@@ -80,6 +82,11 @@ interface Props {
   libraryEntries: LibraryEntry[];
   // Gate-1 Chat-Verlauf (de) fuer das CopyChatPanel.
   chatHistory: ChatTurn[];
+  // Gate-2 Hero-Gen (AI): vorgeladener Dialog + letztes Kandidaten-Set + Prompt
+  // (fuer Re-Open), aus gate_chat(hero, de).
+  heroChatHistory: { role: "user" | "assistant"; content: string }[];
+  heroCandidates: HeroCandidateView[];
+  heroPrompt: string;
 }
 
 type GalleryAsset = Props["assets"][number];
@@ -161,6 +168,9 @@ export function GateView({
   assets,
   libraryEntries,
   chatHistory,
+  heroChatHistory,
+  heroCandidates,
+  heroPrompt,
 }: Props) {
   const [selectedHeadlineIdx, setSelectedHeadlineIdx] = useState<number>(0);
   const [langFilter, setLangFilter] = useState<string>("all");
@@ -276,12 +286,23 @@ export function GateView({
           <div>
             <h2 className="text-lg font-semibold">Gate 2 — Hero-Bild</h2>
             <p className="text-xs text-muted-foreground">
-              Pick aus der Library oder lade ein eigenes Bild hoch. AI-Gen folgt
-              in einer spaeteren Slice.
+              Generiere ein brand-konformes Bild mit Claude/nano-banana, pick aus
+              der Library oder lade ein eigenes hoch.
             </p>
           </div>
 
+          {/* AI-Generierung (nano-banana Multi-Image-Fusion, chat-iteriert) */}
           <div>
+            <h3 className="mb-3 text-sm font-semibold">Mit AI generieren</h3>
+            <HeroGenPanel
+              campaignId={campaignId}
+              initialHistory={heroChatHistory}
+              initialCandidates={heroCandidates}
+              initialPrompt={heroPrompt}
+            />
+          </div>
+
+          <div className="rounded-md border-t pt-6">
             <h3 className="mb-3 text-sm font-semibold">
               Library ({libraryEntries.length})
             </h3>

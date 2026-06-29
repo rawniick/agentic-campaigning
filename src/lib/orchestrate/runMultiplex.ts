@@ -14,6 +14,7 @@ import { checkBrandConformity } from "../qa/checkBrandConformity";
 import { transitionGate, type CampaignState } from "../state/transitionGate";
 import { runVisionQA, type VisionQAClient } from "../qa/runVisionQA";
 import { resolveAiLabelConfig } from "../aiLabel/resolveAiLabelConfig";
+import { resolveAiLabelSrc } from "../render/resolveAiLabelSrc";
 import {
   translateCampaignCopy,
   type TranslateLLMFn,
@@ -329,10 +330,17 @@ async function renderOneFormat(
   // AI-Label-Pflicht (Brand-Compliance): nur bei source='ai' beziehen.
   // Wenn die Brand kein Label registriert hat, gibt der Resolver null zurueck —
   // Template laesst das Asset dann weg (gleicher Codepfad wie upload/library).
-  const aiLabel =
+  let aiLabel =
     data.hero_source === "ai"
       ? (await resolveAiLabelConfig(db, brandConfig.brand.id, format)) ?? undefined
       : undefined;
+  // src auf render-sicheres PNG-Data-URL aufloesen — Satori/resvg fetchen keine
+  // Remote-URLs (wie Logo/Hero). Position bleibt aus DB/Format-Spec. Das offizielle
+  // "Mit KI erstellt"-Asset ist Drop-in (brand-assets/<slug>/ai-label/), sonst
+  // rasterisierter Interim-Badge.
+  if (aiLabel) {
+    aiLabel = { ...aiLabel, src: resolveAiLabelSrc(brandConfig.brand.slug) };
+  }
 
   const emphasis = emphasisForArt(data.kampagne_art);
 

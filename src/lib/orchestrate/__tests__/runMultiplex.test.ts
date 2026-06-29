@@ -585,7 +585,11 @@ describe("runMultiplex", () => {
       const jsx = renderSpy.mock.calls[0][0] as {
         props: { aiLabel?: { src: string; position: { anchor: string } } };
       };
-      expect(jsx.props.aiLabel?.src).toBe("https://example.com/ai-label.svg");
+      // src wird auf ein render-sicheres PNG-Data-URL aufgeloest (Satori/resvg
+      // fetchen keine Remote-URLs); die Position kommt weiterhin aus der DB/Format-Spec.
+      expect(jsx.props.aiLabel?.src.startsWith("data:image/png;base64,")).toBe(
+        true
+      );
       expect(jsx.props.aiLabel?.position.anchor).toBe("bottom-right");
     });
 

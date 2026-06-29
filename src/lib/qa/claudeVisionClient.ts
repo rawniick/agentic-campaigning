@@ -75,7 +75,7 @@ function getClient(): Anthropic {
   return client;
 }
 
-const defaultVisionLLM: VisionLLMFn = async (req) => {
+export const defaultVisionLLM: VisionLLMFn = async (req) => {
   const response = await getClient().messages.create({
     model: MODEL,
     max_tokens: 1024,

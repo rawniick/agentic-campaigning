@@ -34,6 +34,8 @@ export async function getGateChat(
 
 // Haengt einen Turn an. `candidates` wird als jsonb gespeichert (JSON.stringify
 // + $n::jsonb); User-Turns uebergeben undefined/null -> SQL NULL.
+// Bewusst `unknown`: das Kandidaten-Set ist gate-spezifisch — Copy speichert ein
+// CopyOutput, Hero ein { prompt, images }-Set. Die Spalte ist generisches jsonb.
 export async function appendGateChatTurn(
   db: Db,
   input: {
@@ -42,7 +44,7 @@ export async function appendGateChatTurn(
     language: string;
     role: "user" | "assistant";
     content: string;
-    candidates?: CopyOutput | null;
+    candidates?: unknown;
   }
 ): Promise<GateChatTurn> {
   const candidatesJson =

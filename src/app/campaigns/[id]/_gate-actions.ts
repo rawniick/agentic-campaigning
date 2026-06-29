@@ -14,9 +14,22 @@ import { approveCopy } from "@/lib/gates/approveCopy";
 import { createClaudeTranslator } from "@/lib/copy/claudeTranslator";
 import { uploadHero } from "@/lib/gates/uploadHero";
 import { selectHeroFromLibrary } from "@/lib/gates/selectHeroFromLibrary";
+import { selectGeneratedHero } from "@/lib/gates/selectGeneratedHero";
+import { runHeroGenTurn } from "@/lib/gates/runHeroGenTurn";
+import { createFalImageProvider } from "@/lib/imagegen/falProvider";
 import { selectLayoutVariant } from "@/lib/gates/selectLayoutVariant";
 import { runMultiplex, retryAsset } from "@/lib/orchestrate/runMultiplex";
-import { createClaudeVisionClient } from "@/lib/qa/claudeVisionClient";
+import {
+  createClaudeVisionClient,
+  defaultVisionLLM,
+  type VisionLLMFn,
+} from "@/lib/qa/claudeVisionClient";
+import { scoreHeroStyle } from "@/lib/qa/heroStyleQA";
+import {
+  callClaude,
+  type ClaudeCallOptions,
+  type ClaudeResponse,
+} from "@/lib/ai/claude";
 import { reopenToGate, type ReopenTarget } from "@/lib/gates/reopenToGate";
 import { promoteHeroToLibrary } from "@/lib/heroLibrary/promoteHeroToLibrary";
 import { writeAudit } from "@/lib/db/queries/audit";
@@ -93,6 +106,172 @@ export async function selectHeroFromLibraryGateAction(formData: FormData) {
     campaignId,
     event: "GATE2_HERO_SELECTED_FROM_LIBRARY",
     payload: { libraryEntryId },
+  });
+  revalidatePath(`/campaigns/${campaignId}`);
+}
+
+// ---- Gate 2: AI-Hero-Generierung (nano-banana Multi-Image-Fusion, chat-iteriert) ----
+
+// callClaude generisch auf das Hero-Refine-Schema binden (gleiches Cast-Muster
+// wie der Copy-Chat). Nur die Iteration nutzt die LLM (Prompt-Verfeinerung).
+const llmForHeroRefine = callClaude as (
+  opts: ClaudeCallOptions
+) => Promise<ClaudeResponse<{ rationale: string; prompt: string }>>;
+
+const heroRefsSchema = z.object({ campaignId: z.string().uuid() });
+
+// Komponenten-Referenzbilder hochladen (mehrere). Liefert die public Storage-URLs,
+// die der Client als referenceUrls in generateHeroAction weiterreicht (fal fetcht
+// sie als image_urls). Eigene Action, damit Upload + Prompt entkoppelt sind.
+export async function uploadHeroReferencesAction(
+  formData: FormData
+): Promise<{ urls: string[] }> {
+  const { campaignId } = heroRefsSchema.parse({
+    campaignId: formData.get("campaignId"),
+  });
+  const files = formData
+    .getAll("refs")
+    .filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) {
+    throw new Error("Bitte mindestens ein Referenzbild waehlen");
+  }
+  const brand = await getActiveBrandConfig();
+  const storage = createSupabaseStorage();
+  const urls: string[] = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const key = `${brand.brand.slug}/${campaignId}/hero-ref-${Date.now()}-${i}-${safe}`;
+    const { url } = await storage.upload(key, bytes, file.type || "image/jpeg");
+    urls.push(url);
+  }
+  await writeAudit(getDb(), {
+    campaignId,
+    event: "GATE2_HERO_REFS_UPLOADED",
+    payload: { count: urls.length },
+  });
+  return { urls };
+}
+
+export interface HeroCandidateView {
+  storage_url: string;
+  contentType: string;
+  seed?: number;
+  // best-effort Style-Konsistenz-Score (0..1); null wenn QA nicht lief.
+  qaScore: number | null;
+}
+
+const generateHeroSchema = z.object({
+  campaignId: z.string().uuid(),
+  basePrompt: z.string().optional(),
+  currentPrompt: z.string().optional(),
+  userMessage: z.string().optional(),
+  referenceUrls: z.array(z.string()).optional(),
+  selectedReferenceUrl: z.string().optional(),
+});
+
+// Ein Hero-Gen-Turn: Erstgenerierung (basePrompt) oder Chat-Iteration
+// (userMessage -> refineHeroPrompt). Persistiert die Turns in gate_chat(hero) und
+// liefert 3 Kandidaten (best-effort QA-Score je Kandidat). fal LIVE via FAL_KEY.
+export async function generateHeroAction(input: {
+  campaignId: string;
+  basePrompt?: string;
+  currentPrompt?: string;
+  userMessage?: string;
+  referenceUrls?: string[];
+  selectedReferenceUrl?: string;
+}): Promise<{
+  rationale: string;
+  prompt: string;
+  candidates: HeroCandidateView[];
+}> {
+  const data = generateHeroSchema.parse(input);
+  const brand = await getActiveBrandConfig();
+
+  const result = await runHeroGenTurn(
+    getDb(),
+    createSupabaseStorage(),
+    createFalImageProvider(),
+    {
+      campaignId: data.campaignId,
+      brandSlug: brand.brand.slug,
+      brandName: brand.brand.name,
+      basePrompt: data.basePrompt,
+      currentPrompt: data.currentPrompt,
+      userMessage: data.userMessage,
+      referenceUrls: data.referenceUrls,
+      selectedReferenceUrl: data.selectedReferenceUrl,
+      llm: llmForHeroRefine,
+    }
+  );
+
+  // QA-Loop: Style-Konsistenz je Kandidat (best-effort, kein Blocker — ein Fehler
+  // oder fehlender ANTHROPIC_API_KEY liefert null statt die Generierung zu failen).
+  const candidates: HeroCandidateView[] = await Promise.all(
+    result.candidates.map(async (c) => ({
+      storage_url: c.storage_url,
+      contentType: c.contentType,
+      seed: c.seed,
+      qaScore: await scoreHeroCandidateBestEffort(
+        c.storage_url,
+        brand.tokens.colors.primary.hex
+      ),
+    }))
+  );
+
+  await writeAudit(getDb(), {
+    campaignId: data.campaignId,
+    event: "GATE2_HERO_GENERATED",
+    payload: { count: candidates.length, iteration: Boolean(data.userMessage) },
+  });
+  revalidatePath(`/campaigns/${data.campaignId}`);
+  return { rationale: result.rationale, prompt: result.prompt, candidates };
+}
+
+// Adaptiert defaultVisionLLM (erwartet base64) auf eine Kandidaten-URL: laedt das
+// Bild, base64-kodiert es, und laesst scoreHeroStyle die Style-Konsistenz bewerten.
+async function scoreHeroCandidateBestEffort(
+  url: string,
+  brandPrimaryHex: string
+): Promise<number | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const base64 = Buffer.from(await res.arrayBuffer()).toString("base64");
+    const vision: VisionLLMFn = (req) =>
+      defaultVisionLLM({
+        ...req,
+        imageBase64: base64,
+        imageMediaType: "image/png",
+      });
+    const r = await scoreHeroStyle({
+      imageUrl: url,
+      brandStyleNotes: `Wingo-Marke, Primaerfarbe ${brandPrimaryHex}, professioneller, stimmiger Look; freigestellte Person.`,
+      vision,
+    });
+    return r.score;
+  } catch {
+    return null;
+  }
+}
+
+const selectGeneratedHeroSchema = z.object({
+  campaignId: z.string().uuid(),
+  storageUrl: z.string().min(1),
+});
+
+// Marketer waehlt einen generierten Kandidaten -> persistiert als campaign_hero
+// (source='ai') und transitioniert hero_pending -> layout_pending.
+export async function selectGeneratedHeroGateAction(formData: FormData) {
+  const { campaignId, storageUrl } = selectGeneratedHeroSchema.parse(
+    Object.fromEntries(formData)
+  );
+  await selectGeneratedHero(getDb(), { campaignId, storageUrl });
+  await writeAudit(getDb(), {
+    campaignId,
+    event: "GATE2_HERO_SELECTED_FROM_AI",
+    payload: { storageUrl },
   });
   revalidatePath(`/campaigns/${campaignId}`);
 }

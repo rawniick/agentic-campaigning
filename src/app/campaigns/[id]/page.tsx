@@ -29,6 +29,7 @@ export default async function CampaignDetailPage({ params }: PageProps) {
     libraryEntries,
     brandRes,
     gateChat,
+    heroChat,
   ] = await Promise.all([
     getAssetsForCampaign(db, id),
     db.query<{
@@ -58,7 +59,29 @@ export default async function CampaignDetailPage({ params }: PageProps) {
     // 017 noch nicht in Prod), faellt es auf leere History zurueck statt die Seite
     // zu crashen — Persistenz aktiviert sich, sobald 017 eingespielt ist.
     getGateChat(db, id, "copy", "de").catch(() => []),
+    // Gate-2 Hero-Gen-Dialog (de). Gleiche defensive Absicherung wie copy.
+    getGateChat(db, id, "hero", "de").catch(() => []),
   ]);
+
+  // Gate-2 Hero-Gen (AI): Dialog + letztes Kandidaten-Set (prompt + images) aus
+  // gate_chat(hero) fuer Re-Open vorladen. qaScore wird nicht persistiert
+  // (best-effort im Action-Layer) -> beim Vorladen null.
+  const heroHistory = heroChat.map((t) => ({ role: t.role, content: t.content }));
+  const lastHeroSet = [...heroChat].reverse().find((t) => t.role === "assistant")
+    ?.candidates as unknown as
+    | {
+        prompt?: string;
+        images?: { storage_url: string; contentType: string; seed?: number }[];
+      }
+    | null
+    | undefined;
+  const heroCandidates = (lastHeroSet?.images ?? []).map((im) => ({
+    storage_url: im.storage_url,
+    contentType: im.contentType,
+    seed: im.seed,
+    qaScore: null,
+  }));
+  const heroPrompt = lastHeroSet?.prompt ?? "";
 
   // Warnt in der Gallery, falls noch kein echtes Wingo-Lockup vorliegt und der
   // Render auf den Interim-Platzhalter zurueckfaellt (KO-Kriterium Brand-Logo).
@@ -122,6 +145,9 @@ export default async function CampaignDetailPage({ params }: PageProps) {
             content: t.content,
             candidates: t.candidates,
           }))}
+          heroChatHistory={heroHistory}
+          heroCandidates={heroCandidates}
+          heroPrompt={heroPrompt}
         />
       </div>
     </div>
