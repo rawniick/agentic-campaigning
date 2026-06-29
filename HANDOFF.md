@@ -1,78 +1,74 @@
-# HANDOFF — ACE Wingo (Stand 2026-06-25)
+# HANDOFF — ACE Wingo (Stand 2026-06-29)
 
-> Frische Session: lies `CLAUDE.md` (Projekt) + Memory-Files + **`plans/wingo-v1.2-krea-workspace.md`**
-> (Entscheidungs-Log D1–D11, Phasen 0–8, kanonische Flash-Sale-Anatomie). Dieses Doc = aktueller Stand + EINE offene Aktion.
+> Frische Session: lies `CLAUDE.md` + Memory-Files + **`plans/wingo-v1.2-krea-workspace.md`**
+> (Entscheidungs-Log D1–D11, Phasen 0–8). Dieses Doc = aktueller Stand, offene Aktionen, nächste Phase.
+>
+> **Standing-Order (Memory `feedback_parallel_subagents`):** IMMER parallel + mit Subagents/Workflows
+> arbeiten wo möglich. Ultracode an. → für jede substanzielle Aufgabe das **Workflow-Tool** nutzen
+> (fan-out Build/Verify; geteilte Dateien sequenziell in einer Integrations-Phase).
 
-## ⏳ DIE EINE offene Aktion: Migration 017 auf Prod
-Der Workspace-UX-Block ist live-deployed, aber die `gate_chat`-Tabelle (Migration 017) muss noch
-in die Prod-DB, damit der **Copy-Chat persistiert/schreibt**. Lesen ist abgesichert
-(`getGateChat(...).catch(()=>[])` in `page.tsx` → Seite crasht NICHT ohne 017), aber das **Schreiben**
-(refine im Chat) braucht die Tabelle.
+## ✅ Status: Blöcke 0/1/2 DONE + deployed
+Git `wingo-v1` == `origin/wingo-v1` == `main`, alles gepusht. **Live:** https://agentic-campaigning.vercel.app
+Full Suite **340 grün / 0 failed** (5 skipped = gated live/manual), `tsc` clean. Deploy: `npx vercel --prod --yes`.
+
+- **Phase 0/1** (commits bis `365a9dc`): React-#31-Crashfix (pg DATE→string, `db/server.ts`); Umlaut-Fix im
+  Copy-Prompt; „Briefing JSON" raus; Standard-Preis-Scraper (`src/lib/pricing/scrapeWingo.ts`) + Admin-Button.
+- **Block 1 Workspace-UX** (`f71b380`, via Workflow): Two-Pane-Shell + Copy-Chat Gate 1 (DB-persistiert via
+  `gate_chat`/Migration 017) + Pfeil-Stepper + ProgressBar + SaveIndicator. Dateien: `src/app/campaigns/[id]/workspace/*`,
+  `_chat-actions.ts`, `src/lib/copy/refineCopy.ts`, `src/lib/db/queries/gate-chat.ts`.
+- **Block 2 Konformität** (`c0d74a9`, via Workflow + visuelles Review/Fix durch Agent): `CanonicalPortrait` +
+  `CanonicalLandscape` (Flex-Flow gegen Text-Overlap, **art-gated** Flash/Standard), alle 8 Format-Wrapper
+  delegieren daran; **Doppelpreis-Pipeline** (`runMultiplex` reicht product_name + price_standard); **Vision-QA als
+  echter Export-Blocker** (`exportCampaignZip`: Score<0.7 / Safezone<0.6); generischer Aktions-/Preis-Disclaimer
+  geseedet. Alle 8 Formate visuell brand-konform (Portrait/Landscape/Square/Compact). Cut-out-Hero = noch Platzhalter-Silhouette.
+
+## ⏳ OFFENE PROD-DATEN-SCHRITTE (sandbox-gated → Nick via `!`, sonst graceful degrade)
+Code ist live; diese DB-/Daten-Schritte aktivieren den vollen Effekt. Ohne sie: kanonischer Look + Einzelpreis + nur 5G-Hinweis.
 ```
-node scripts/apply-migration.mjs 017_gate_chat.sql      # additiv, reversibel (DROP TABLE gate_chat)
+node scripts/apply-migration.mjs 017_gate_chat.sql   # Copy-Chat-Write (Lesen ist via .catch(()=>[]) abgesichert)
+node scripts/seed-disclaimers.mjs                    # voller Aktions-/Preis-Legal-Text statt nur "5G im Swisscom Netz"
 ```
-⚠️ Prod-DB-Writes sind sandbox-gated → braucht Nicks `!`-Ausführung oder eine Permission-Rule für
-`node scripts/apply-migration.mjs`. (Hinweis: `supabase/consolidated_001-016.sql` ist veraltet — 017
-fehlt dort; für frische Deploys nachziehen.)
++ `/admin/products` → „Standard-Preise von wingo.ch aktualisieren" → füllt `products.price_standard` → aktiviert **Doppelpreis**.
+⚠️ Prod-DB-Writes brauchen Nicks `!`-Ausführung oder eine Permission-Rule. (`supabase/consolidated_001-016.sql` ist veraltet —
+017 + die Disclaimer-Seed-Daten fehlen dort; für frische Deploys nachziehen.)
 
-## ✅ Diese Session erledigt (committed auf `wingo-v1`)
-**Der frühere Blocker (client-side exception) ist GELÖST:** React #31 — `pg` parste `DATE`-Spalten
-(`campaigns.datum_von/bis`) zu JS-`Date`, die direkt in JSX gerendert wurden. PGlite (Tests) liefert
-strings → unsichtbar. Fix: pg-Type-Parser (OID 1082/1114/1184) in `src/lib/db/server.ts`.
+## ⏭ NÄCHSTE PHASE — Block 3: Hero-AI-Gen (D6, Hybrid)
+**Ziel:** brand-konforme Kampagnenbilder erzeugen — **freigestellte (transparente) Cut-out-Personen** aus
+**Referenzbildern** via **fal/nano-banana Multi-Image-Fusion**, chat-iteriert, in Gate 2.
 
-- **Phase 0** (Crashfix-Loop): DATE-Fix + Regression-Test; schlanke Error-Boundaries
-  (`src/app/error.tsx`, `global-error.tsx`, Stack nur in Dev); Sourcemaps wieder aus; Temp-Script weg.
-- **Phase 1** (Quick Wins): Copy-Prompt erzwingt echte **Umlaute** (`generateCopy.ts` war ASCII-transliteriert);
-  „Briefing JSON"-Block raus; **Standard-Preis-Scraper** (`src/lib/pricing/scrapeWingo.ts` matcht wingo.chs
-  `data-teaser-card-price` über den Promo-Preis) + Admin-Button auf `/admin/products`.
-- **Block-1 Workspace-UX** (via Parallel-**Workflow**, 4 Module + Integration + Verify): **Two-Pane-Shell**
-  (`workspace/WorkspaceShell.tsx`: Konsole links / Canvas rechts), **Copy-Chat Gate 1**
-  (`workspace/CopyChatPanel.tsx` + `_chat-actions.ts` + `src/lib/copy/refineCopy.ts` + `gate_chat`/017 +
-  `src/lib/db/queries/gate-chat.ts`), **Pfeil-Stepper** (`workspace/GateStepper.tsx`), **ProgressBar** +
-  **SaveIndicator**. `GateView.tsx` in die Shell umgebaut, alle Gate-Forms in `useTransition`.
-- **Halfpage-Tracer** (kanonische Flash-Sale-Anatomie) wurde gebaut, dann **bewusst zurückgerollt**
-  (commit `873c077` → `86f1cd2`), weil er 5 Bestands-Tests brach UND flash-only war (zeigte „flash sale"
-  fälschlich auf Standard-Kampagnen). **Spec + Preview-Harness bleiben** — Rebuild kommt richtig in Block-2.
+**Was existiert** (`src/lib/imagegen/`, gebaut, aber NICHT in Gate 2 verdrahtet):
+- `types.ts` (ImageProvider, GenerateInput{prompt, styleReferenceUrls?[], n?, aspectRatio?, modelParams?}, ModelEntry).
+- `falProvider.ts` — REST POST `fal.run/{providerModelId}`, mappt `styleReferenceUrls` → `image_urls` (nur wenn
+  `model.supportsStyleRef`). nano-banana `image_urls` IST das Multi-Image-Compositing. Für echtes img2img/Init-Image
+  ggf. Feld ergänzen.
+- `registry.ts` — `nano-banana-2` (fal-ai/nano-banana-2, supportsStyleRef, **enabled**); imagen-4 (disabled);
+  seedance = image-to-VIDEO (out-of-V1). `engine.ts` (generateHeroCandidates + Fallback), `mockImageProvider.ts`.
+- `campaign_hero.source` unterstützt bereits `'ai'`. Env `FAL_KEY` (Lizenz Gemini/ByteDance laut Nick **geklärt**).
 
-Voller Test-Stand: **333 passed, 0 failed** (5 skipped = gated live/E2E). `tsc` clean.
+**Gap (zu bauen):** `generateHeroGateAction` + Gate-2-„Bild generieren"-UI (mehrere Komponenten-Uploads + Library-Refs +
+Prompt) → nano-banana → 3 Kandidaten; **Chat-Iteration** (gewählte Variante = Referenz für nächsten Turn, analog
+`gate_chat`/`refineCopy`-Muster aus Block 1); **QA-Loop** (Style-Consistency via `claudeVisionClient`); `source='ai'`;
+**AI-Label-Pflicht** im Render — ⚠️ AI-Label-Asset fehlt (`brand-assets/wingo/ai-label/` nur `.gitkeep`).
+Gate-2-Flow heute: nur Upload + Library (`src/app/campaigns/[id]/GateView.tsx` inHero-Block, `src/lib/gates/uploadHero.ts`,
+`selectHeroFromLibrary.ts`). Resolver: `src/lib/render/resolveHeroSrc.ts`.
 
-## 🎯 Build-Reihenfolge (Nicks Priorität) + was als Nächstes
-1. ✅ **Workspace-UX** (done, deployed; nur 017 pending).
-2. ⏭ **Block-2: Konformität** — „finale Outputs unbrauchbar" fixen. Anker = echte Sample-Sujets
-   (`brand-assets/wingo/samples/Beispiel Kampagne Flash Sale/`), kanonische Anatomie + D11 (Hybrid) im Plan.
-   **TODO:** Halfpage-Rebuild richtig (Flex-Flow gegen Overlap, „flash sale"-Wordmark, kurze Headline,
-   **Doppelpreis-Blob** alt-durchgestrichen+neu via `productName`/`priceStandard` durch `runMultiplex` verdrahten,
-   Gratis-Badge, Channel-Footer, Legal-Line mehrzeilig); **auf alle 8 Formate** ausrollen; **Art-Gating**
-   (flash-Chrome nur für flash_sale, nicht standard); Gate-3-Varianten reconcilen; die 5 Design-Contract-Tests
-   updaten (`src/templates/__tests__/FlashSaleHalfpage.test.tsx`, `src/templates/wingo/__tests__/emphasis.test.tsx`,
-   `src/lib/render/__tests__/renderToPng.test.tsx`); **Legal-Line** seeden/matchen + lesbar rendern; **Vision-QA als
-   echten Export-Blocker** (heute nur advisory; harter Gate `checkBrandConformity.ts` prüft nur Logo/Dims/Primärfarbe).
-   Cut-out-Hero-PNGs nötig (Gate-2 AI-Gen / Nick). Review-Loop: `PREVIEW=1 npx vitest run src/lib/render/__tests__/previewSamples.manual.test.ts`.
-3. ⏭ **Block-3: Hero-AI-Gen** — fal/**nano-banana** Multi-Image-Fusion aus Referenzbildern, Gate-2-„Bild generieren"-UI,
-   AI-Label-Pflicht. Lizenz geklärt + `FAL_KEY` da (Nick). `src/lib/imagegen/` existiert, ist NICHT in Gate 2 verdrahtet.
+## Offen (Nick-Input)
+- Die 3 Prod-Daten-Schritte oben. - Lizenzierte Radikal-Font (aktuell „passt so" = Inter-Interim ok).
+- Freigestellte Cut-out-Hero-PNGs (oder via Block-3 AI-Gen erzeugen). - AI-Label-Asset. - Supabase-Access-Token revoken.
 
-## ⚙️ Standing-Preference + Infra
-- **Immer parallel + Subagents/Workflows** wo möglich (Memory `feedback_parallel_subagents`; Nick „notiere das!!"). Ultracode an.
-- **Live:** https://agentic-campaigning.vercel.app (Vercel `agentic-campaigning`, Org `rawniicks-projects`, CLI=`rawniick`).
-  Supabase `kaqxwjmzavxysxtnkdeo`. Secrets in gitignored `.env.local`. Prod-Deploy: `npx vercel --prod --yes`.
-- **Offen (Nick-Input):** lizenzierte Radikal-Font (aktuell „passt so" = Inter-Interim ok); Scraper auf Prod verifizieren;
-  freigestellte Cut-out-Hero-PNGs; Supabase-Access-Token revoken.
-
-## Commands (Ergänzungen zu CLAUDE.md)
+## Commands (Ergänzung zu CLAUDE.md)
 ```
-node scripts/apply-migration.mjs 017_gate_chat.sql        # einzelne Migration auf Prod
-PREVIEW=1 npx vitest run src/lib/render/__tests__/previewSamples.manual.test.ts   # alle Formate rendern → scripts/preview/
+PREVIEW=1 npx vitest run src/lib/render/__tests__/previewSamples.manual.test.ts   # alle 8 Formate rendern → scripts/preview/ (gitignored)
+node scripts/apply-migration.mjs <datei.sql>   # einzelne Migration auf Prod (sandbox-gated)
 ```
 
-## Schlüssel-Dateien (neu/relevant ggü. CLAUDE.md)
-- Workspace-UX: `src/app/campaigns/[id]/workspace/*` (Shell/Stepper/ProgressBar/SaveIndicator/CopyChatPanel),
-  `_chat-actions.ts`, `src/lib/copy/refineCopy.ts`, `src/lib/db/queries/gate-chat.ts`, `supabase/migrations/017_gate_chat.sql`.
-- Konformität (Block-2): `src/templates/wingo/flash_sale/*`, `campaignStyle.ts`, `src/lib/qa/checkBrandConformity.ts`,
-  `src/lib/qa/runVisionQA.ts` + `claudeVisionClient.ts`, `src/lib/render/propagatePositions.ts` (verwaist, für Layer-Editor).
-- Scraper: `src/lib/pricing/scrapeWingo.ts`. Migration-Runner: `scripts/apply-migration.mjs`.
+## Schlüssel-Dateien (Block 3 relevant)
+- Image-Gen: `src/lib/imagegen/*` (types/falProvider/registry/engine/mock). Gate 2: `src/app/campaigns/[id]/GateView.tsx`
+  (inHero), `_gate-actions.ts`, `src/lib/gates/uploadHero.ts` + `selectHeroFromLibrary.ts`, `src/lib/render/resolveHeroSrc.ts`.
+- Chat-Muster (für Hero-Chat wiederverwendbar): `src/app/campaigns/[id]/_chat-actions.ts`, `workspace/CopyChatPanel.tsx`,
+  `src/lib/db/queries/gate-chat.ts` (gate-Spalte unterstützt schon 'hero').
+- Templates/Konformität: `src/templates/wingo/flash_sale/CanonicalPortrait.tsx` + `CanonicalLandscape.tsx`.
 
 ## Suggested Skills (nächste Session)
-- **Workflow-Tool** (parallel bauen — Nicks Default).
-- **prd-to-plan** für Block-2/3 als Tracer-Slices, falls gewünscht.
-- **/grill-with-docs** (grill-me) nur wenn neu zu scopen ist — D1–D11 sind bereits entschieden.
-- **tdd** für die Konformitäts-/Template-Arbeit (die Design-Contract-Tests treiben).
+- **Workflow-Tool** — Nicks Default für jede substanzielle Aufgabe (Block 3 fan-out: gate_hero-data / fal-adapter-extension / Gate-2-UI / chat-iteration / QA-loop parallel, dann Integration).
+- **tdd** für die imagegen-/Gate-2-Arbeit. **claude-api** falls Claude-Vision-QA auf generierten Heroes verfeinert wird (fal-Gen selbst ist nicht Anthropic).
